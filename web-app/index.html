@@ -1,9 +1,179 @@
-<!-- In HTML Comments are written like this -->
-<!-- They can all be removed for your apps -->
-<!doctype html> <!-- This first line tells browsers to expect modern standard html 5 -->
-<html lang="en-gb"> <!-- This is indicates the page is written in British English, useful for accessibility -->
-<meta charset="utf-8"> <!-- This indicates how the file is encoded. utf-8 is standard -->
-<title>Your Web-app Title</title> <!-- All pages need a title, this will be displayed in the browser's title bar -->
-<link rel="stylesheet" href="default.css"> <!-- Import style sheet – default.css -->
-<link rel="icon" href="./assets/favicon.png"> <!-- Import 'Favorites Icon' – favicon.png -->
-<script type="module" src="main.js"></script> <!-- Load the main script. Must be type="module". Have only one of these -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#fff0f4">
+    <meta
+      name="description"
+      content="Mochi's Sakura Garden, a cozy turn-based pixel puzzle game."
+    >
+    <title>Mochi's Sakura Garden</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <div class="petal-drift" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+
+    <main class="reference-shell">
+      <div class="reference-layout">
+        <section class="map-column" aria-labelledby="board-heading">
+          <header class="game-title">
+            <h1><span aria-hidden="true">✿</span> Mochi’s Sakura Garden <span aria-hidden="true">✿</span></h1>
+            <p><i aria-hidden="true">✿</i> 7 × 7 Map <i aria-hidden="true">✿</i></p>
+          </header>
+          <h2 id="board-heading" class="sr-only">Interactive Sakura Garden map</h2>
+
+          <div class="coordinate-board">
+            <div class="column-coordinates" aria-hidden="true">
+              <span>1</span><span>2</span><span>3</span><span>4</span>
+              <span>5</span><span>6</span><span>7</span>
+            </div>
+            <div class="row-coordinates" aria-hidden="true">
+              <span>A</span><span>B</span><span>C</span><span>D</span>
+              <span>E</span><span>F</span><span>G</span>
+            </div>
+            <div class="board-frame">
+              <div
+                id="board"
+                class="board"
+                role="grid"
+                aria-label="Mochi's seven by seven sakura garden board"
+              ></div>
+            </div>
+          </div>
+
+          <section class="pink-card map-summary" aria-labelledby="summary-heading">
+            <div class="summary-tree" aria-hidden="true">
+              <span class="sprite sprite-restoredTree"></span>
+            </div>
+            <div>
+              <h2 id="summary-heading">Map Summary</h2>
+              <ul>
+                <li>Total Trees: 3 (<strong id="trees-display">0 / 3 restored</strong>) at A1, C4, G7</li>
+                <li>Sakura Spirits: 2 (<strong id="spirits-display">0 / 2 helped</strong>) at B3, E7</li>
+                <li>Items: Petal Piles (A5, C1, D6, F5, G3), Tea (D3), Fish Snack (F2)</li>
+                <li>Special: Tanuki (A6), Crow (C7), Shrine Gate (E4)</li>
+                <li>Start Position: Mochi the Cat (at G1)</li>
+              </ul>
+            </div>
+          </section>
+        </section>
+
+        <aside class="reference-sidebar" aria-label="Game controls, objectives, and legend">
+          <div class="control-dock">
+            <section class="pink-card controls-panel" aria-labelledby="game-controls-heading">
+              <div class="card-heading">
+                <span aria-hidden="true">✿</span>
+                <h2 id="game-controls-heading">Game Controls</h2>
+                <span aria-hidden="true">✿</span>
+              </div>
+
+              <div class="status-strip">
+                <div><small>Turn</small><strong id="round-display">1</strong></div>
+                <div><small>AP</small><strong id="ap-display">2 / 2</strong></div>
+                <div><small>Energy</small><strong id="energy-display">8 / 8</strong></div>
+                <div><small>Petals</small><strong id="petals-display">0</strong></div>
+              </div>
+
+              <div id="turn-badge" class="turn-badge" data-turn="player">
+                <span class="turn-dot" aria-hidden="true"></span>
+                <span id="turn-label">Player turn</span>
+                <span class="selected-action">Selected: <strong id="selected-action-display">Walk</strong></span>
+              </div>
+
+              <div class="action-grid">
+                <button id="walk-button" class="pixel-button active" type="button" data-action="walk">
+                  <span class="action-symbol walk-symbol" aria-hidden="true">➜</span>
+                  <span><strong>Walk</strong><small>Arrows / WASD</small></span>
+                </button>
+                <button id="meow-button" class="pixel-button" type="button" data-action="meow">
+                  <span class="action-symbol meow-symbol" aria-hidden="true">!</span>
+                  <span><strong>Meow</strong><small id="meow-note">1 AP · 1 energy</small></span>
+                </button>
+                <button id="restore-button" class="pixel-button" type="button" data-action="restore">
+                  <span class="action-symbol restore-symbol" aria-hidden="true">✿</span>
+                  <span><strong>Restore</strong><small id="restore-note">1 AP · 3 petals</small></span>
+                </button>
+                <button id="rest-button" class="pixel-button" type="button" data-action="rest">
+                  <span class="action-symbol rest-symbol" aria-hidden="true">Zz</span>
+                  <span><strong>Rest</strong><small>1 AP · +2 energy</small></span>
+                </button>
+              </div>
+
+              <div class="turn-controls">
+                <button id="end-turn-button" class="wide-button" type="button">End Turn</button>
+                <button id="reset-button" class="wide-button pale" type="button">Reset</button>
+              </div>
+              <p id="availability-note" class="availability-note">Restore the garden and enjoy the peaceful day!</p>
+            </section>
+
+            <section class="pink-card notes-panel" aria-labelledby="actions-heading">
+              <div class="card-heading compact">
+                <h2 id="actions-heading">Next Step</h2>
+              </div>
+              <p id="next-step-display" class="next-step-display" aria-live="polite">
+                Collect the petals at G3, then follow F3 toward the damaged tree at C4.
+              </p>
+              <p class="quick-controls">Move: arrows/WASD · Actions: 2/3/4 <span aria-hidden="true">♥</span></p>
+            </section>
+
+            <section class="pink-card objectives-panel" aria-labelledby="objectives-heading">
+              <div class="card-heading flower-heading compact">
+                <span aria-hidden="true">✿</span>
+                <h2 id="objectives-heading">Objectives</h2>
+                <span aria-hidden="true">✿</span>
+              </div>
+              <ul class="objective-list">
+                <li id="lanterns-objective"><span aria-hidden="true"></span>1. Light both spirit lanterns</li>
+                <li id="spirits-objective"><span aria-hidden="true"></span>2. Calm and guide both spirits</li>
+                <li id="trees-objective"><span aria-hidden="true"></span>3. Collect petals and restore 3 trees</li>
+                <li id="shrine-objective"><span aria-hidden="true"></span>4. Enter the Shrine Gate</li>
+              </ul>
+            </section>
+
+            <section class="pink-card garden-message" aria-labelledby="message-heading">
+              <div class="message-cat" aria-hidden="true">
+                <span class="sprite sprite-mochi"></span>
+              </div>
+              <div>
+                <h2 id="message-heading">Garden Message</h2>
+                <p id="message" aria-live="polite"></p>
+                <p class="control-help">Move with arrow keys, WASD, or click a highlighted adjacent tile.</p>
+              </div>
+            </section>
+
+            <section id="result-panel" class="pink-card result-panel" aria-labelledby="result-heading" hidden>
+              <div class="card-heading compact">
+                <h2 id="result-heading">Garden Complete</h2>
+              </div>
+              <div id="star-display" class="stars" aria-label="Star rating"></div>
+              <p id="result-copy"></p>
+            </section>
+          </div>
+
+          <section class="pink-card legend-card" aria-labelledby="legend-heading">
+            <div class="card-heading flower-heading">
+              <span aria-hidden="true">✿</span>
+              <h2 id="legend-heading">Legend</h2>
+              <span aria-hidden="true">✿</span>
+            </div>
+            <ul id="legend-list" class="legend-list"></ul>
+          </section>
+        </aside>
+      </div>
+
+      <section class="game-console" aria-label="Garden journal">
+        <section class="pink-card journal-panel" aria-labelledby="log-heading">
+          <div class="card-heading compact">
+            <h2 id="log-heading">Garden Journal</h2>
+          </div>
+          <ol id="game-log" class="game-log"></ol>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="main.js"></script>
+  </body>
+</html>
