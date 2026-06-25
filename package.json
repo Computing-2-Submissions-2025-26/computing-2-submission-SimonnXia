@@ -1,15 +1,17 @@
 {
-  "name": "mochis-sakura-garden",
+  "name": "mochi-shrine-of-shadows",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "A cozy turn-based JavaScript board game for Computing 2 coursework.",
+  "description": "A turn-based JavaScript board rescue game for Computing 2 coursework.",
   "scripts": {
     "start": "node web-app/server.js",
     "test": "node --test web-app/tests/game.test.js",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "docs": "jsdoc web-app/game.js -d docs/api"
   },
   "devDependencies": {
-    "eslint": "^9.0.0"
+    "eslint": "^9.0.0",
+    "jsdoc": "^4.0.5"
   }
 }

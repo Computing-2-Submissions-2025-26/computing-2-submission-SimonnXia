@@ -3,174 +3,120 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#fff0f4">
+    <meta name="theme-color" content="#1a1326">
     <meta
       name="description"
-      content="Mochi's Sakura Garden, a cozy turn-based pixel puzzle game."
+      content="Mochi and the Shrine of Shadows, a cute turn-based pixel rescue game."
     >
-    <title>Mochi's Sakura Garden</title>
+    <title>Mochi and the Shrine of Shadows</title>
     <link rel="stylesheet" href="style.css">
   </head>
   <body>
-    <div class="petal-drift" aria-hidden="true">
-      <span></span><span></span><span></span><span></span><span></span>
-    </div>
+    <main class="app">
+      <!-- Intro story screen -->
+      <section id="intro-screen" class="screen story-screen" aria-labelledby="intro-title">
+        <div class="story-art intro-art" aria-hidden="true">
+          <span class="art-cat"></span>
+          <span class="art-king"></span>
+          <span class="art-shrine-dark"></span>
+        </div>
+        <h1 id="intro-title">Mochi and the Shrine of Shadows</h1>
+        <div class="story-text">
+          <p>You are <strong>Mochi</strong>, a small cat of the Cat Kingdom.</p>
+          <p>A monster has dragged the <strong>King</strong> into a dark shrine.
+            You alone are sent to bring him home.</p>
+          <p>Travel into the <strong>Sakura Forest</strong> and awaken its three
+            sleeping spirits. When all are freed, the sealed gate will open.</p>
+          <p>Step into the <strong>Sealed Land</strong>, shatter the Dark Shrine,
+            and rescue the King!</p>
+        </div>
+        <button id="start-button" class="pixel-button big" type="button">Start the Quest</button>
+      </section>
 
-    <main class="reference-shell">
-      <div class="reference-layout">
-        <section class="map-column" aria-labelledby="board-heading">
-          <header class="game-title">
-            <h1><span aria-hidden="true">✿</span> Mochi’s Sakura Garden <span aria-hidden="true">✿</span></h1>
-            <p><i aria-hidden="true">✿</i> 7 × 7 Map <i aria-hidden="true">✿</i></p>
-          </header>
-          <h2 id="board-heading" class="sr-only">Interactive Sakura Garden map</h2>
+      <!-- Forest and Sealed Land share this play screen -->
+      <section id="game-screen" class="screen play-screen" aria-labelledby="phase-title" hidden>
+        <header class="play-header">
+          <h1 id="phase-title">Sakura Forest</h1>
+          <p id="objective" class="objective">Awaken the three sakura spirits.</p>
+        </header>
 
-          <div class="coordinate-board">
-            <div class="column-coordinates" aria-hidden="true">
-              <span>1</span><span>2</span><span>3</span><span>4</span>
-              <span>5</span><span>6</span><span>7</span>
-            </div>
-            <div class="row-coordinates" aria-hidden="true">
-              <span>A</span><span>B</span><span>C</span><span>D</span>
-              <span>E</span><span>F</span><span>G</span>
-            </div>
-            <div class="board-frame">
-              <div
-                id="board"
-                class="board"
-                role="grid"
-                aria-label="Mochi's seven by seven sakura garden board"
-              ></div>
-            </div>
+        <div class="play-layout">
+          <div class="board-side">
+            <div id="board" class="board" role="grid" aria-label="Game board"></div>
           </div>
 
-          <section class="pink-card map-summary" aria-labelledby="summary-heading">
-            <div class="summary-tree" aria-hidden="true">
-              <span class="sprite sprite-restoredTree"></span>
-            </div>
-            <div>
-              <h2 id="summary-heading">Map Summary</h2>
-              <ul>
-                <li>Total Trees: 3 (<strong id="trees-display">0 / 3 restored</strong>) at A1, C4, G7</li>
-                <li>Sakura Spirits: 2 (<strong id="spirits-display">0 / 2 helped</strong>) at B3, E7</li>
-                <li>Items: Petal Piles (A5, C1, D6, F5, G3), Tea (D3), Fish Snack (F2)</li>
-                <li>Special: Tanuki (A6), Crow (C7), Shrine Gate (E4)</li>
-                <li>Start Position: Mochi the Cat (at G1)</li>
-              </ul>
-            </div>
-          </section>
-        </section>
-
-        <aside class="reference-sidebar" aria-label="Game controls, objectives, and legend">
-          <div class="control-dock">
-            <section class="pink-card controls-panel" aria-labelledby="game-controls-heading">
-              <div class="card-heading">
-                <span aria-hidden="true">✿</span>
-                <h2 id="game-controls-heading">Game Controls</h2>
-                <span aria-hidden="true">✿</span>
+          <aside class="hud" aria-label="Status and controls">
+            <section class="hud-card status-card">
+              <div class="hud-stat"><span>Phase</span><strong id="phase-display">Forest</strong></div>
+              <div class="hud-stat"><span>Turn owner</span><strong id="turn-owner-display">Mochi</strong></div>
+              <div class="hud-stat"><span>Turn</span><strong id="turn-display">1</strong></div>
+              <div class="hud-stat stamina-stat">
+                <span>Stamina</span>
+                <strong id="stamina-display">5 / 5</strong>
+                <span class="stamina-meter" aria-hidden="true"><span id="stamina-fill"></span></span>
               </div>
-
-              <div class="status-strip">
-                <div><small>Turn</small><strong id="round-display">1</strong></div>
-                <div><small>AP</small><strong id="ap-display">2 / 2</strong></div>
-                <div><small>Energy</small><strong id="energy-display">8 / 8</strong></div>
-                <div><small>Petals</small><strong id="petals-display">0</strong></div>
-              </div>
-
-              <div id="turn-badge" class="turn-badge" data-turn="player">
-                <span class="turn-dot" aria-hidden="true"></span>
-                <span id="turn-label">Player turn</span>
-                <span class="selected-action">Selected: <strong id="selected-action-display">Walk</strong></span>
-              </div>
-
-              <div class="action-grid">
-                <button id="walk-button" class="pixel-button active" type="button" data-action="walk">
-                  <span class="action-symbol walk-symbol" aria-hidden="true">➜</span>
-                  <span><strong>Walk</strong><small>Arrows / WASD</small></span>
-                </button>
-                <button id="meow-button" class="pixel-button" type="button" data-action="meow">
-                  <span class="action-symbol meow-symbol" aria-hidden="true">!</span>
-                  <span><strong>Meow</strong><small id="meow-note">1 AP · 1 energy</small></span>
-                </button>
-                <button id="restore-button" class="pixel-button" type="button" data-action="restore">
-                  <span class="action-symbol restore-symbol" aria-hidden="true">✿</span>
-                  <span><strong>Restore</strong><small id="restore-note">1 AP · 3 petals</small></span>
-                </button>
-                <button id="rest-button" class="pixel-button" type="button" data-action="rest">
-                  <span class="action-symbol rest-symbol" aria-hidden="true">Zz</span>
-                  <span><strong>Rest</strong><small>1 AP · +2 energy</small></span>
-                </button>
-              </div>
-
-              <div class="turn-controls">
-                <button id="end-turn-button" class="wide-button" type="button">End Turn</button>
-                <button id="reset-button" class="wide-button pale" type="button">Reset</button>
-              </div>
-              <p id="availability-note" class="availability-note">Restore the garden and enjoy the peaceful day!</p>
+              <div id="forest-stat" class="hud-stat"><span>Spirits freed</span><strong id="spirits-display">0 / 3</strong></div>
+              <div id="gate-stat" class="hud-stat"><span>Shrine gate</span><strong id="gate-display">Sealed</strong></div>
+              <div id="obelisk-stat" class="hud-stat" hidden><span>Obelisks</span><strong id="obelisks-display">0 / 4</strong></div>
+              <div id="boss-stat" class="hud-stat" hidden><span>Dark Shrine</span><strong id="boss-display">Dormant</strong></div>
             </section>
 
-            <section class="pink-card notes-panel" aria-labelledby="actions-heading">
-              <div class="card-heading compact">
-                <h2 id="actions-heading">Next Step</h2>
-              </div>
-              <p id="next-step-display" class="next-step-display" aria-live="polite">
-                Collect the petals at G3, then follow F3 toward the damaged tree at C4.
-              </p>
-              <p class="quick-controls">Move: arrows/WASD · Actions: 2/3/4 <span aria-hidden="true">♥</span></p>
+            <section class="hud-card phase-art-card" aria-labelledby="phase-tip-title">
+              <h2 id="phase-tip-title">Quick guide</h2>
+              <div id="phase-art" class="phase-art" aria-hidden="true"></div>
+              <p id="phase-tip" class="phase-tip"></p>
             </section>
 
-            <section class="pink-card objectives-panel" aria-labelledby="objectives-heading">
-              <div class="card-heading flower-heading compact">
-                <span aria-hidden="true">✿</span>
-                <h2 id="objectives-heading">Objectives</h2>
-                <span aria-hidden="true">✿</span>
+            <section class="hud-card actions-card" aria-label="Actions">
+              <p class="action-hint">One action per turn: <strong>Move</strong> (up to 2 tiles) or <strong>Meow</strong>. After acting, press <strong>Next Turn</strong>.</p>
+              <div class="action-row">
+                <button id="move-button" class="pixel-button active" type="button" aria-pressed="true">Move</button>
+                <button id="meow-button" class="pixel-button" type="button">Meow</button>
               </div>
-              <ul class="objective-list">
-                <li id="lanterns-objective"><span aria-hidden="true"></span>1. Light both spirit lanterns</li>
-                <li id="spirits-objective"><span aria-hidden="true"></span>2. Calm and guide both spirits</li>
-                <li id="trees-objective"><span aria-hidden="true"></span>3. Collect petals and restore 3 trees</li>
-                <li id="shrine-objective"><span aria-hidden="true"></span>4. Enter the Shrine Gate</li>
-              </ul>
-            </section>
-
-            <section class="pink-card garden-message" aria-labelledby="message-heading">
-              <div class="message-cat" aria-hidden="true">
-                <span class="sprite sprite-mochi"></span>
-              </div>
-              <div>
-                <h2 id="message-heading">Garden Message</h2>
-                <p id="message" aria-live="polite"></p>
-                <p class="control-help">Move with arrow keys, WASD, or click a highlighted adjacent tile.</p>
+              <div class="action-row">
+                <button id="wait-button" class="pixel-button" type="button">End Turn</button>
+                <button id="restart-button" class="pixel-button pale" type="button">Restart</button>
               </div>
             </section>
 
-            <section id="result-panel" class="pink-card result-panel" aria-labelledby="result-heading" hidden>
-              <div class="card-heading compact">
-                <h2 id="result-heading">Garden Complete</h2>
-              </div>
-              <div id="star-display" class="stars" aria-label="Star rating"></div>
-              <p id="result-copy"></p>
+            <section class="hud-card message-card" aria-label="Current message">
+              <p id="message" aria-live="polite"></p>
             </section>
+
+            <section class="hud-card log-card" aria-labelledby="log-title">
+              <h2 id="log-title">Journal</h2>
+              <ol id="log" class="log"></ol>
+            </section>
+          </aside>
+        </div>
+
+        <div id="lost-overlay" class="overlay" role="alertdialog" aria-labelledby="lost-title" hidden>
+          <div class="overlay-box">
+            <h2 id="lost-title">Mochi has fallen…</h2>
+            <p id="lost-text">The Dark Shrine's gaze was too quick. Try again, brave cat.</p>
+            <button id="lost-restart" class="pixel-button big" type="button">Try Again</button>
           </div>
+        </div>
+      </section>
 
-          <section class="pink-card legend-card" aria-labelledby="legend-heading">
-            <div class="card-heading flower-heading">
-              <span aria-hidden="true">✿</span>
-              <h2 id="legend-heading">Legend</h2>
-              <span aria-hidden="true">✿</span>
-            </div>
-            <ul id="legend-list" class="legend-list"></ul>
-          </section>
-        </aside>
-      </div>
-
-      <section class="game-console" aria-label="Garden journal">
-        <section class="pink-card journal-panel" aria-labelledby="log-heading">
-          <div class="card-heading compact">
-            <h2 id="log-heading">Garden Journal</h2>
-          </div>
-          <ol id="game-log" class="game-log"></ol>
-        </section>
+      <!-- Ending story screen -->
+      <section id="ending-screen" class="screen story-screen" aria-labelledby="ending-title" hidden>
+        <div class="story-art ending-art" aria-hidden="true">
+          <span class="art-king-crown"></span>
+          <span class="art-cat-hero"></span>
+          <span class="art-sparkle s1"></span>
+          <span class="art-sparkle s2"></span>
+          <span class="art-sparkle s3"></span>
+        </div>
+        <h1 id="ending-title">The King is Rescued!</h1>
+        <div class="story-text">
+          <p>The Dark Shrine is dust. The sealed land fades, and the King of the
+            Cat Kingdom stands free once more.</p>
+          <p>Mochi carried courage in a very small body — and the whole kingdom
+            purrs in thanks.</p>
+          <p><strong>The End.</strong></p>
+        </div>
+        <button id="replay-button" class="pixel-button big" type="button">Play Again</button>
       </section>
     </main>
 

@@ -1,60 +1,104 @@
 /**
- * Mochi's Sakura Garden game rules.
+ * Mochi and the Shrine of Shadows — game rules.
  *
- * This module has no browser dependencies. Every game action is deterministic
- * and returns a new state rather than mutating the supplied state.
+ * A small cat from the Cat Kingdom must rescue the captured king. The game runs
+ * through four phases: an intro, the Sakura Forest, the Sealed Land, and an
+ * ending. Every action returns a new state rather than mutating the input, and
+ * the module has no browser dependency.
  *
  * @module game
  */
 
-/** @typedef {"grass"|"stonePath"|"pond"|"rock"|"bridge"|"petalPile"|"tea"|"fishSnack"|"damagedTree"|"restoredTree"|"lanternOff"|"lanternOn"|"shrine"|"hiddenPetals"} TerrainType */
-/** @typedef {"playing"|"completed"} GameStatus */
-/** @typedef {"player"|"garden"} Turn */
+/** @typedef {"intro"|"forest"|"sealedLand"|"ending"} Phase */
+/** @typedef {"playing"|"won"|"lost"} Status */
 /** @typedef {"up"|"down"|"left"|"right"} Direction */
-/** @typedef {"sakuraSpirit"|"sleepyTanuki"|"petalCrow"} CreatureType */
-/** @typedef {"walk"|"meow"|"restore"|"rest"} SelectedAction */
+/** @typedef {"grass"|"flowerGrass"|"stone"|"rock"|"pond"|"bush"|"fence"|"gate"|"ground"|"void"} TerrainType */
+
+/**
+ * @typedef {Object} Position
+ * @property {number} row
+ * @property {number} col
+ */
 
 /**
  * @typedef {Object} Player
  * @property {number} row
  * @property {number} col
- * @property {number} energy
- * @property {number} maxEnergy
- * @property {number} petals
- * @property {number} actionPoints
- * @property {number} maxActionPoints
+ * @property {number} stamina
+ * @property {number} maxStamina
+ * @property {number} stunnedTurns
  */
 
 /**
- * @typedef {Object} Creature
+ * @typedef {Object} Tree
  * @property {string} id
- * @property {CreatureType} type
  * @property {number} row
  * @property {number} col
- * @property {string} status
- * @property {boolean} following
+ * @property {boolean} awakened
+ * @property {boolean} spiritFreed
+ */
+
+/**
+ * @typedef {Object} Obelisk
+ * @property {string} id
+ * @property {number} row
+ * @property {number} col
+ * @property {boolean} destroyed
+ */
+
+/**
+ * @typedef {Object} FishCookie
+ * @property {string} id
+ * @property {number} row
+ * @property {number} col
+ * @property {boolean} collected
+ */
+
+/**
+ * @typedef {Object} Tombstone
+ * @property {string} id
+ * @property {number} row
+ * @property {number} col
+ */
+
+/**
+ * @typedef {Object} Boss
+ * @property {number} row
+ * @property {number} col
+ * @property {boolean} alive
+ * @property {number} silencedTurns
+ * @property {Position|null} targetedTile
  */
 
 /**
  * @typedef {Object} GameState
- * @property {TerrainType[][]} board
- * @property {Player} player
- * @property {Creature[]} creatures
- * @property {Turn} turn
- * @property {number} round
- * @property {GameStatus} status
- * @property {SelectedAction} selectedAction
- * @property {number} restoredTrees
- * @property {number} helpedSpirits
- * @property {number} totalTrees
- * @property {number} totalSpirits
- * @property {number} starRating
+ * @property {Phase} phase
+ * @property {Status} status
+ * @property {Phase} currentMap
+ * @property {number} turn
  * @property {string} message
- * @property {string[]} gameLog
+ * @property {string[]} log
+ * @property {TerrainType[][]} [board]
+ * @property {Player} [player]
+ * @property {Tree[]} [trees]
+ * @property {FishCookie[]} [fishCookies]
+ * @property {{row:number,col:number,open:boolean}} [shrineGate]
+ * @property {number} [rescuedSpirits]
+ * @property {number} [totalSpirits]
+ * @property {Boss} [boss]
+ * @property {Obelisk[]} [obelisks]
+ * @property {Tombstone[]} [tombstones]
+ * @property {Position[]} [destroyedTiles]
+ * @property {number} [destroyedObelisks]
  */
 
-const BOARD_SIZE = 7;
-const PETALS_PER_PILE = 3;
+const FOREST_SIZE = 7;
+const SEALED_SIZE = 9;
+const MOVE_RANGE = 2;
+const TOTAL_SPIRITS = 3;
+const TOTAL_OBELISKS = 4;
+const SILENCE_TURNS = 5;
+const MAX_STAMINA = 5;
 
 const DIRECTIONS = {
   up: [-1, 0],
@@ -63,907 +107,671 @@ const DIRECTIONS = {
   left: [0, -1],
 };
 
-const BLOCKED_TERRAIN = new Set(["pond", "rock", "damagedTree", "restoredTree"]);
+const FOREST_BLOCKED = new Set(["rock", "pond", "bush", "fence"]);
 
-const INITIAL_BOARD = [
-  ["damagedTree", "grass", "rock", "lanternOff", "petalPile", "grass", "restoredTree"],
-  ["stonePath", "pond", "grass", "stonePath", "grass", "stonePath", "hiddenPetals"],
-  ["petalPile", "bridge", "stonePath", "damagedTree", "stonePath", "pond", "grass"],
-  ["grass", "grass", "tea", "grass", "grass", "petalPile", "stonePath"],
-  ["grass", "stonePath", "grass", "shrine", "grass", "stonePath", "grass"],
-  ["grass", "fishSnack", "stonePath", "grass", "petalPile", "lanternOff", "grass"],
-  ["grass", "stonePath", "petalPile", "stonePath", "grass", "grass", "damagedTree"],
+// Fixed, hand-validated forest layout. Trees and the gate are stored as
+// entities; their tiles stay grass underneath so the board holds terrain only.
+const FOREST_TERRAIN = [
+  ["grass", "stone", "flowerGrass", "grass", "stone", "grass", "flowerGrass"],
+  ["grass", "grass", "stone", "pond", "stone", "grass", "grass"],
+  ["flowerGrass", "grass", "stone", "stone", "stone", "grass", "grass"],
+  ["grass", "rock", "stone", "gate", "stone", "rock", "grass"],
+  ["grass", "stone", "stone", "stone", "stone", "flowerGrass", "grass"],
+  ["grass", "bush", "grass", "grass", "stone", "bush", "fence"],
+  ["grass", "stone", "flowerGrass", "grass", "stone", "grass", "grass"],
 ];
 
-const INITIAL_CREATURES = [
-  {
-    id: "spirit-one",
-    type: "sakuraSpirit",
-    row: 1,
-    col: 2,
-    status: "shy",
-    following: false,
-  },
-  {
-    id: "spirit-two",
-    type: "sakuraSpirit",
-    row: 4,
-    col: 6,
-    status: "shy",
-    following: false,
-  },
-  {
-    id: "tanuki",
-    type: "sleepyTanuki",
-    row: 0,
-    col: 5,
-    status: "asleep",
-    following: false,
-  },
-  {
-    id: "crow",
-    type: "petalCrow",
-    row: 2,
-    col: 6,
-    status: "playful",
-    following: false,
-  },
+const FOREST_TREES = [
+  { id: "tree-1", row: 1, col: 1, awakened: false, spiritFreed: false },
+  { id: "tree-2", row: 1, col: 5, awakened: false, spiritFreed: false },
+  { id: "tree-3", row: 5, col: 3, awakened: false, spiritFreed: false },
+];
+
+const FOREST_GATE = { row: 3, col: 3, open: false };
+const FOREST_START = { row: 6, col: 0, stamina: MAX_STAMINA, maxStamina: MAX_STAMINA, stunnedTurns: 0 };
+
+// Fish cookies sit on the intended route. Mochi needs these refills to wake all
+// trees and reach the gate without making stamina frustrating.
+const FOREST_FISH_COOKIES = [
+  { id: "fish-forest-1", row: 6, col: 2, collected: false },
+  { id: "fish-forest-2", row: 0, col: 1, collected: false },
+  { id: "fish-forest-3", row: 0, col: 5, collected: false },
+  { id: "fish-forest-4", row: 2, col: 6, collected: false },
+];
+
+const SEALED_BOSS = { row: 0, col: 4 };
+const SEALED_START = { row: 8, col: 4, stamina: MAX_STAMINA, maxStamina: MAX_STAMINA, stunnedTurns: 0 };
+const SEALED_OBELISKS = [
+  { id: "obelisk-1", row: 0, col: 0, destroyed: false },
+  { id: "obelisk-2", row: 0, col: 8, destroyed: false },
+  { id: "obelisk-3", row: 8, col: 0, destroyed: false },
+  { id: "obelisk-4", row: 8, col: 8, destroyed: false },
+];
+const SEALED_FISH_COOKIES = [
+  { id: "fish-sealed-1", row: 8, col: 2, collected: false },
+  { id: "fish-sealed-2", row: 7, col: 6, collected: false },
+  { id: "fish-sealed-3", row: 8, col: 7, collected: false },
+  { id: "fish-sealed-4", row: 5, col: 7, collected: false },
+  { id: "fish-sealed-5", row: 2, col: 7, collected: false },
+  { id: "fish-sealed-6", row: 1, col: 5, collected: false },
+  { id: "fish-sealed-7", row: 1, col: 3, collected: false },
+  { id: "fish-sealed-8", row: 5, col: 1, collected: false },
+];
+const SEALED_TOMBSTONES = [
+  { id: "tomb-1", row: 2, col: 2 },
+  { id: "tomb-2", row: 2, col: 4 },
+  { id: "tomb-3", row: 2, col: 6 },
+  { id: "tomb-4", row: 3, col: 3 },
+  { id: "tomb-5", row: 3, col: 5 },
+  { id: "tomb-6", row: 4, col: 2 },
+  { id: "tomb-7", row: 4, col: 6 },
+  { id: "tomb-8", row: 5, col: 3 },
+  { id: "tomb-9", row: 5, col: 5 },
+  { id: "tomb-10", row: 6, col: 4 },
 ];
 
 const cloneBoard = (board) => board.map((row) => [...row]);
-const cloneCreatures = (creatures) => creatures.map((creature) => ({ ...creature }));
-const positionKey = (row, col) => `${row},${col}`;
-const distance = (a, b) => Math.abs(a.row - b.row) + Math.abs(a.col - b.col);
+const cloneTrees = (trees) => trees.map((tree) => ({ ...tree }));
+const cloneObelisks = (obelisks) => obelisks.map((obelisk) => ({ ...obelisk }));
+const cloneFishCookies = (fishCookies) => fishCookies.map((fish) => ({ ...fish }));
+const cloneTombstones = (tombstones) => tombstones.map((tombstone) => ({ ...tombstone }));
+const samePosition = (a, b) => a.row === b.row && a.col === b.col;
 
-const replaceTile = (board, row, col, tile) => board.map(
-  (boardRow, rowIndex) => boardRow.map(
-    (currentTile, colIndex) => (
-      rowIndex === row && colIndex === col ? tile : currentTile
-    ),
-  ),
-);
-
-const addMessage = (state, message, addToLog = true) => ({
+const addMessage = (state, message) => ({
   ...state,
   message,
-  gameLog: addToLog ? [...state.gameLog, message] : [...state.gameLog],
+  log: [...state.log, message],
 });
 
-const isActionAvailable = (state) => (
-  state.status === "playing"
-  && state.turn === "player"
-  && state.player.actionPoints > 0
-);
+/**
+ * Reports whether board coordinates are inside a square board.
+ * @param {number} row Board row.
+ * @param {number} col Board column.
+ * @param {number} [size=7] Board width and height.
+ * @returns {boolean} True when the coordinates fit inside the board size.
+ */
+export function isInsideBoard(row, col, size = FOREST_SIZE) {
+  return Number.isInteger(row)
+    && Number.isInteger(col)
+    && row >= 0
+    && row < size
+    && col >= 0
+    && col < size;
+}
 
-const areGardenWishesComplete = (state) => (
-  state.restoredTrees >= state.totalTrees
-  && state.helpedSpirits >= state.totalSpirits
-);
+const boardSize = (state) => state.board?.length ?? FOREST_SIZE;
 
-const hasCalmedSpirit = (state) => state.creatures.some((creature) => (
-  creature.type === "sakuraSpirit" && creature.status !== "shy"
+/**
+ * Reads the terrain tile of the active map without changing state.
+ * @param {GameState} state Current game state.
+ * @param {number} row Board row.
+ * @param {number} col Board column.
+ * @returns {TerrainType|null} The tile, or null when out of bounds or map-less.
+ */
+export function getTileAt(state, row, col) {
+  if (!state.board || !isInsideBoard(row, col, boardSize(state))) {
+    return null;
+  }
+  return state.board[row][col];
+}
+
+const adjacentPositions = (row, col, size = FOREST_SIZE) => Object.values(DIRECTIONS)
+  .map(([rowChange, colChange]) => ({ row: row + rowChange, col: col + colChange }))
+  .filter(({ row: nextRow, col: nextCol }) => isInsideBoard(nextRow, nextCol, size));
+
+const treeAt = (state, row, col) => (state.trees ?? []).find((tree) => (
+  tree.row === row && tree.col === col
 ));
 
-const hasGuidingLantern = (state, spirit) => state.board.some((row, rowIndex) => (
-  row.some((tile, colIndex) => (
-    tile === "lanternOn"
-    && distance(spirit, { row: rowIndex, col: colIndex }) <= 2
-  ))
+const liveObeliskAt = (state, row, col) => (state.obelisks ?? []).find((obelisk) => (
+  obelisk.row === row && obelisk.col === col && !obelisk.destroyed
 ));
 
-const spendActionPoint = (state) => ({
+const fishCookieAt = (state, row, col) => (state.fishCookies ?? []).find((fish) => (
+  fish.row === row && fish.col === col && !fish.collected
+));
+
+const tombstoneAt = (state, row, col) => (state.tombstones ?? []).find((tombstone) => (
+  tombstone.row === row && tombstone.col === col
+));
+
+const isVoidTile = (state, row, col) => (state.destroyedTiles ?? []).some((tile) => (
+  tile.row === row && tile.col === col
+));
+
+const canTakeAction = (state) => {
+  if (!state.player) {
+    return { ok: false, message: "Mochi is not on the board." };
+  }
+  if (state.player.stunnedTurns > 0) {
+    return { ok: false, message: "Mochi is dizzy from the tombstone. End the turn to recover." };
+  }
+  if (state.player.stamina <= 0) {
+    return { ok: false, message: "Mochi is too tired. Find a fish cookie refill." };
+  }
+  return { ok: true, message: "" };
+};
+
+const spendStamina = (state) => ({
   ...state,
-  player: {
-    ...state.player,
-    actionPoints: state.player.actionPoints - 1,
-  },
+  player: { ...state.player, stamina: Math.max(0, state.player.stamina - 1) },
 });
 
-const creatureBlocksMovement = (creature) => {
-  if (creature.type === "sakuraSpirit") {
-    return creature.status !== "helped";
+const collectFishCookie = (state) => {
+  const fish = fishCookieAt(state, state.player.row, state.player.col);
+  if (!fish) {
+    return state;
   }
-  if (creature.type === "sleepyTanuki") {
-    return creature.status === "asleep";
-  }
-  return true;
+  return addMessage({
+    ...state,
+    fishCookies: state.fishCookies.map((candidate) => (
+      candidate.id === fish.id ? { ...candidate, collected: true } : { ...candidate }
+    )),
+    player: { ...state.player, stamina: state.player.maxStamina },
+  }, "Mochi munches a fish cookie. Stamina is full!");
 };
 
-const adjacentPositionsFor = (row, col) => Object.values(DIRECTIONS)
-  .map(([rowChange, colChange]) => ({
-    row: row + rowChange,
-    col: col + colChange,
-  }))
-  .filter(({ row: nextRow, col: nextCol }) => isInsideBoard(nextRow, nextCol));
-
-const isAdjacentToRestoredTree = (state, creature) => adjacentPositionsFor(
-  creature.row,
-  creature.col,
-).some(({ row, col }) => getTileAt(state, row, col) === "restoredTree");
-
-const canDeliverSpiritWithMochi = (state, creature) => (
-  distance(creature, state.player) === 1
-  && isAdjacentToRestoredTree(state, state.player)
-);
-
-const getActionBlockMessage = (state) => {
-  if (state.status === "completed") {
-    return "The garden is complete. Mochi is enjoying the blossoms!";
+const applyTombstoneEffect = (state) => {
+  if (state.phase !== "sealedLand" || !tombstoneAt(state, state.player.row, state.player.col)) {
+    return state;
   }
-  if (state.turn !== "player") {
-    return "The garden is taking its turn.";
-  }
-  return "Mochi has no action points left. End the turn to continue.";
-};
-
-const isActionableMeowTarget = (state, target) => {
-  if (target.kind === "tile") {
-    return target.type === "lanternOff"
-      || (target.type === "hiddenPetals" && hasCalmedSpirit(state));
-  }
-  const creature = state.creatures.find((candidate) => candidate.id === target.id);
-  return creature?.type === "petalCrow"
-    || (
-      creature?.type === "sakuraSpirit"
-      && creature.status === "shy"
-      && hasGuidingLantern(state, creature)
-    )
-    || (creature?.type === "sleepyTanuki" && creature.status === "asleep");
+  return addMessage({
+    ...state,
+    player: { ...state.player, stunnedTurns: 1 },
+  }, "A tombstone curse rattles Mochi. Next turn must be spent recovering.");
 };
 
 /**
- * Creates the fixed 7 x 7 starting garden.
- * @returns {GameState} A fresh game state.
+ * Checks whether Mochi may stand on a tile of the current map.
+ * @param {GameState} state Current game state.
+ * @param {number} row Destination row.
+ * @param {number} col Destination column.
+ * @returns {boolean} True when the tile is inside, walkable, and unoccupied.
+ */
+export function canMoveTo(state, row, col) {
+  if (!isInsideBoard(row, col, boardSize(state))) {
+    return false;
+  }
+  if (state.phase === "forest") {
+    const tile = getTileAt(state, row, col);
+    if (FOREST_BLOCKED.has(tile) || treeAt(state, row, col)) {
+      return false;
+    }
+    if (tile === "gate") {
+      return state.shrineGate.open;
+    }
+    return true;
+  }
+  if (state.phase === "sealedLand") {
+    return !isVoidTile(state, row, col)
+      && !samePosition(state.boss, { row, col })
+      && !liveObeliskAt(state, row, col);
+  }
+  return false;
+}
+
+/**
+ * Creates the opening game state, sitting on the intro story screen.
+ * @returns {GameState} A fresh intro-phase state.
  */
 export function createInitialState() {
+  const message = "The king of the Cat Kingdom has been captured. Mochi's quest begins.";
   return {
-    board: cloneBoard(INITIAL_BOARD),
-    player: {
-      row: 6,
-      col: 0,
-      energy: 8,
-      maxEnergy: 8,
-      petals: 0,
-      actionPoints: 2,
-      maxActionPoints: 2,
-    },
-    creatures: cloneCreatures(INITIAL_CREATURES),
-    turn: "player",
-    round: 1,
+    phase: "intro",
     status: "playing",
-    selectedAction: "walk",
-    restoredTrees: 0,
-    helpedSpirits: 0,
-    totalTrees: 3,
-    totalSpirits: 2,
-    starRating: 0,
-    message: "A quiet morning begins. First, light a spirit lantern with Meow!",
-    gameLog: ["A quiet morning begins. First, light a spirit lantern with Meow!"],
+    currentMap: "intro",
+    turn: 0,
+    message,
+    log: [message],
   };
 }
 
 /**
- * Starts over with a fully independent initial state.
- * @returns {GameState} A fresh game state.
+ * Starts over from the intro screen with a fully independent state.
+ * @returns {GameState} A fresh intro-phase state.
  */
 export function resetGame() {
   return createInitialState();
 }
 
 /**
- * Reports whether board coordinates are valid.
- * @param {number} row Board row.
- * @param {number} col Board column.
- * @returns {boolean} True for coordinates inside the 7 x 7 board.
- */
-export function isInsideBoard(row, col) {
-  return Number.isInteger(row)
-    && Number.isInteger(col)
-    && row >= 0
-    && row < BOARD_SIZE
-    && col >= 0
-    && col < BOARD_SIZE;
-}
-
-/**
- * Reads a terrain tile without changing the state.
+ * Leaves the intro and enters the Sakura Forest with a fresh forest map.
  * @param {GameState} state Current game state.
- * @param {number} row Board row.
- * @param {number} col Board column.
- * @returns {TerrainType|null} The tile, or null for invalid coordinates.
+ * @returns {GameState} A new forest-phase state, or feedback when not in intro.
  */
-export function getTileAt(state, row, col) {
-  return isInsideBoard(row, col) ? state.board[row][col] : null;
-}
-
-/**
- * Checks for a creature that currently blocks movement.
- * @param {GameState} state Current game state.
- * @param {number} row Board row.
- * @param {number} col Board column.
- * @returns {boolean} True when a blocking creature occupies the position.
- */
-export function isOccupied(state, row, col) {
-  return state.creatures.some((creature) => (
-    creature.row === row
-    && creature.col === col
-    && creatureBlocksMovement(creature)
-  ));
-}
-
-/**
- * Checks whether Mochi may enter a board position.
- * @param {GameState} state Current game state.
- * @param {number} row Destination row.
- * @param {number} col Destination column.
- * @returns {boolean} True when the destination is inside, walkable, and unoccupied.
- */
-export function canMoveTo(state, row, col) {
-  const tile = getTileAt(state, row, col);
-  const shrineLocked = tile === "shrine" && !areGardenWishesComplete(state);
-  return tile !== null
-    && !BLOCKED_TERRAIN.has(tile)
-    && !shrineLocked
-    && !isOccupied(state, row, col);
-}
-
-/**
- * Moves Mochi one orthogonal tile and collects any item there.
- * Invalid moves return a new state containing explanatory feedback.
- * @param {GameState} state Current game state.
- * @param {Direction} direction Direction to walk.
- * @returns {GameState} A new state.
- */
-export function movePlayer(state, direction) {
-  if (!isActionAvailable(state)) {
-    return addMessage(state, getActionBlockMessage(state));
+export function startGame(state) {
+  if (state.phase !== "intro") {
+    return addMessage(state, "The journey has already begun.");
   }
-  if (!Object.hasOwn(DIRECTIONS, direction)) {
-    return addMessage(state, "Mochi tilts their head. That is not a walking direction.");
-  }
-
-  const [rowChange, colChange] = DIRECTIONS[direction];
-  const nextRow = state.player.row + rowChange;
-  const nextCol = state.player.col + colChange;
-
-  if (!isInsideBoard(nextRow, nextCol)) {
-    return addMessage(state, "The garden ends there. Mochi stays on the path.");
-  }
-  if (
-    getTileAt(state, nextRow, nextCol) === "shrine"
-    && !areGardenWishesComplete(state)
-  ) {
-    const treesLeft = state.totalTrees - state.restoredTrees;
-    const spiritsLeft = state.totalSpirits - state.helpedSpirits;
-    return addMessage(
-      state,
-      `The shrine is waiting. Restore ${treesLeft} more tree${treesLeft === 1 ? "" : "s"} and help ${spiritsLeft} more spirit${spiritsLeft === 1 ? "" : "s"} first.`,
-    );
-  }
-  if (!canMoveTo(state, nextRow, nextCol)) {
-    return addMessage(state, "That way is gently blocked.");
-  }
-
-  const movedState = spendActionPoint({
-    ...state,
-    selectedAction: "walk",
-    player: {
-      ...state.player,
-      row: nextRow,
-      col: nextCol,
-    },
-  });
-  const collectedState = collectTileItem(movedState);
-  const shrineMessage = getTileAt(collectedState, nextRow, nextCol) === "shrine"
-    ? "Mochi steps through the open shrine gate."
-    : `Mochi pads to row ${nextRow + 1}, column ${nextCol + 1}.`;
-  const messagedState = collectedState.message === movedState.message
-    ? addMessage(collectedState, shrineMessage)
-    : collectedState;
-
-  return checkCompletion(messagedState);
+  const message = "Mochi enters the Sakura Forest. Meow beside each tree to wake its spirit.";
+  return {
+    phase: "forest",
+    status: "playing",
+    currentMap: "forest",
+    turn: 1,
+    board: cloneBoard(FOREST_TERRAIN),
+    player: { ...FOREST_START },
+    trees: cloneTrees(FOREST_TREES),
+    fishCookies: cloneFishCookies(FOREST_FISH_COOKIES),
+    shrineGate: { ...FOREST_GATE },
+    rescuedSpirits: 0,
+    totalSpirits: TOTAL_SPIRITS,
+    message,
+    log: [...state.log, message],
+  };
 }
 
 /**
- * Lists valid orthogonally adjacent board positions around Mochi.
+ * Lists interactable objects orthogonally adjacent to Mochi on the active map:
+ * dormant trees in the forest, or standing obelisks in the Sealed Land.
  * @param {GameState} state Current game state.
- * @returns {{row:number,col:number}[]} Adjacent positions in up, right, down, left order.
+ * @returns {Array<{kind:string,id:string,row:number,col:number}>} Adjacent objects.
  */
-export function getAdjacentPositions(state) {
-  return adjacentPositionsFor(state.player.row, state.player.col);
-}
-
-/**
- * Finds adjacent creatures and terrain that Meow or Restore can affect.
- * @param {GameState} state Current game state.
- * @returns {Array<{kind:"creature"|"tile",row:number,col:number,type:string,id?:string}>} Interactable neighbours.
- */
-export function getAdjacentInteractable(state) {
-  return getAdjacentPositions(state).flatMap(({ row, col }) => {
-    const creature = state.creatures.find((candidate) => (
-      candidate.row === row && candidate.col === col
-    ));
-    const tile = getTileAt(state, row, col);
-    const entries = [];
-
-    if (creature) {
-      entries.push({
-        kind: "creature",
-        row,
-        col,
-        type: creature.type,
-        id: creature.id,
-      });
+export function getAdjacentObjects(state) {
+  if (!state.player) {
+    return [];
+  }
+  return adjacentPositions(state.player.row, state.player.col, boardSize(state)).flatMap(({ row, col }) => {
+    if (state.phase === "forest") {
+      const tree = treeAt(state, row, col);
+      return tree && !tree.awakened
+        ? [{ kind: "tree", id: tree.id, row, col }]
+        : [];
     }
-    if (["hiddenPetals", "lanternOff", "damagedTree"].includes(tile)) {
-      entries.push({ kind: "tile", row, col, type: tile });
+    if (state.phase === "sealedLand") {
+      const obelisk = liveObeliskAt(state, row, col);
+      return obelisk
+        ? [{ kind: "obelisk", id: obelisk.id, row, col }]
+        : [];
     }
-    return entries;
+    return [];
   });
 }
 
-/**
- * Checks whether Meow has an adjacent eligible target and enough energy.
- * A shy spirit is eligible only after its nearby lantern has been lit.
- * @param {GameState} state Current game state.
- * @returns {boolean} True when Meow can currently be attempted.
- */
-export function canMeow(state) {
-  return isActionAvailable(state)
-    && state.player.energy > 0
-    && getAdjacentInteractable(state).some((target) => isActionableMeowTarget(state, target));
-}
+// Resolves one Move action of up to two orthogonal steps. Each step must stay on
+// the board and land on a walkable tile. Stepping onto an open gate ends the
+// move there and transitions to the Sealed Land.
+const walkPath = (state, directions) => {
+  const steps = Array.isArray(directions) ? directions : [directions];
+  if (steps.length === 0 || steps.length > MOVE_RANGE) {
+    return { ok: false, message: "Mochi can move one or two tiles in a turn." };
+  }
+  if (!steps.every((step) => Object.hasOwn(DIRECTIONS, step))) {
+    return { ok: false, message: "That is not a direction Mochi can walk." };
+  }
 
-const pushCrow = (state, crow) => {
-  const occupied = new Set(
-    state.creatures
-      .filter((creature) => creature.id !== crow.id && creatureBlocksMovement(creature))
-      .map((creature) => positionKey(creature.row, creature.col)),
-  );
-  const candidates = adjacentPositionsFor(crow.row, crow.col)
-    .filter(({ row, col }) => (
-      canCreatureEnter(state, row, col)
-      && !occupied.has(positionKey(row, col))
-      && !(row === state.player.row && col === state.player.col)
-    ))
-    .sort((first, second) => (
-      Number(getTileAt(state, first.row, first.col) === "petalPile")
-      - Number(getTileAt(state, second.row, second.col) === "petalPile")
-      || distance(second, state.player) - distance(first, state.player)
-      || first.row - second.row
-      || first.col - second.col
-    ));
-
-  return candidates[0] ?? { row: crow.row, col: crow.col };
+  let { row, col } = state.player;
+  for (const step of steps) {
+    const [rowChange, colChange] = DIRECTIONS[step];
+    const nextRow = row + rowChange;
+    const nextCol = col + colChange;
+    if (!isInsideBoard(nextRow, nextCol, boardSize(state))) {
+      return { ok: false, message: "The path ends there. Mochi stays on the trail." };
+    }
+    if (
+      state.phase === "forest"
+      && getTileAt(state, nextRow, nextCol) === "gate"
+      && state.shrineGate.open
+    ) {
+      return { ok: true, position: { row: nextRow, col: nextCol }, enteredGate: true };
+    }
+    if (!canMoveTo(state, nextRow, nextCol)) {
+      return { ok: false, message: "Something blocks the way." };
+    }
+    row = nextRow;
+    col = nextCol;
+  }
+  return { ok: true, position: { row, col }, enteredGate: false };
 };
 
 /**
- * Performs every eligible contextual interaction adjacent to Mochi.
- * Meow costs one action point and one energy. A nearby lantern must be lit
- * before a shy spirit can be calmed. Sequence-blocked spirit and hidden-petal
- * attempts return feedback without spending resources.
+ * Performs a Move action: Mochi walks one or two orthogonal tiles. In the
+ * Sealed Land the boss turn resolves afterward. Invalid moves return feedback
+ * without changing position or advancing the turn.
  * @param {GameState} state Current game state.
- * @returns {GameState} A new state with adjacent effects applied.
+ * @param {Direction|Direction[]} pathOrDirections One or two step directions.
+ * @returns {GameState} A new state.
+ */
+export function movePlayer(state, pathOrDirections) {
+  if (state.status !== "playing" || (state.phase !== "forest" && state.phase !== "sealedLand")) {
+    return addMessage(state, "Mochi cannot move right now.");
+  }
+  const action = canTakeAction(state);
+  if (!action.ok) {
+    return addMessage(state, action.message);
+  }
+
+  const result = walkPath(state, pathOrDirections);
+  if (!result.ok) {
+    return addMessage(state, result.message);
+  }
+
+  let movedState = spendStamina({
+    ...state,
+    player: { ...state.player, ...result.position },
+    message: state.message,
+    log: state.log,
+  });
+  movedState = collectFishCookie(movedState);
+
+  if (state.phase === "forest") {
+    if (result.enteredGate) {
+      return enterShrineGate({ ...movedState, player: { ...movedState.player, ...result.position } });
+    }
+    return {
+      ...addMessage(movedState, `Mochi moves to row ${result.position.row + 1}, column ${result.position.col + 1}.`),
+      turn: state.turn + 1,
+    };
+  }
+
+  const stepped = addMessage(
+    applyTombstoneEffect(movedState),
+    `Mochi darts to row ${result.position.row + 1}, column ${result.position.col + 1}.`,
+  );
+  return resolveBossTurn(stepped);
+}
+
+/**
+ * Awakens a dormant forest tree by id.
+ * @param {GameState} state Current game state.
+ * @param {string} treeId Tree identifier.
+ * @returns {GameState} A new state, or feedback for an invalid or awake tree.
+ */
+export function awakenTree(state, treeId) {
+  const tree = (state.trees ?? []).find((candidate) => candidate.id === treeId);
+  if (!tree) {
+    return addMessage(state, "There is no such tree here.");
+  }
+  if (tree.awakened) {
+    return { ...state, trees: cloneTrees(state.trees) };
+  }
+  return {
+    ...state,
+    trees: state.trees.map((candidate) => (
+      candidate.id === treeId ? { ...candidate, awakened: true } : { ...candidate }
+    )),
+  };
+}
+
+/**
+ * Frees the spirit sealed inside an awakened tree, counting it once.
+ * @param {GameState} state Current game state.
+ * @param {string} treeId Tree identifier.
+ * @returns {GameState} A new state, or feedback for an invalid tree.
+ */
+export function freeSpirit(state, treeId) {
+  const tree = (state.trees ?? []).find((candidate) => candidate.id === treeId);
+  if (!tree || tree.spiritFreed) {
+    return { ...state, trees: cloneTrees(state.trees ?? []) };
+  }
+  return {
+    ...state,
+    trees: state.trees.map((candidate) => (
+      candidate.id === treeId ? { ...candidate, spiritFreed: true } : { ...candidate }
+    )),
+    rescuedSpirits: state.rescuedSpirits + 1,
+  };
+}
+
+/**
+ * Opens the central shrine gate.
+ * @param {GameState} state Current game state.
+ * @returns {GameState} A new state with the gate open.
+ */
+export function openShrineGate(state) {
+  return { ...state, shrineGate: { ...state.shrineGate, open: true } };
+}
+
+/**
+ * Opens the shrine gate once every spirit has been freed.
+ * @param {GameState} state Current game state.
+ * @returns {GameState} A new state; the gate opens when all spirits are freed.
+ */
+export function checkForestCompletion(state) {
+  if (state.rescuedSpirits >= state.totalSpirits && !state.shrineGate.open) {
+    return addMessage(
+      openShrineGate(state),
+      "All spirits are free! The shrine gate glows open in the heart of the forest.",
+    );
+  }
+  return { ...state, shrineGate: { ...state.shrineGate } };
+}
+
+/**
+ * Performs a Meow action. In the forest it wakes an adjacent dormant tree and
+ * frees its spirit; in the Sealed Land it destroys an adjacent obelisk. With no
+ * valid target the turn is not spent.
+ * @param {GameState} state Current game state.
+ * @returns {GameState} A new state.
  */
 export function useMeow(state) {
-  if (!isActionAvailable(state)) {
-    return addMessage(state, getActionBlockMessage(state));
+  if (state.status !== "playing") {
+    return addMessage(state, "The quest is already over.");
   }
-  if (state.player.energy <= 0) {
-    return addMessage(state, "Mochi needs a little rest before meowing again.");
-  }
-
-  const adjacentTargets = getAdjacentInteractable(state);
-  const shySpiritWaitingForLight = adjacentTargets.some((target) => {
-    if (target.kind !== "creature") {
-      return false;
-    }
-    const targetCreature = state.creatures.find((candidate) => candidate.id === target.id);
-    return targetCreature?.type === "sakuraSpirit"
-      && targetCreature.status === "shy"
-      && !hasGuidingLantern(state, targetCreature);
-  });
-  const hiddenPetalsWaitingForSpirit = adjacentTargets.some((target) => (
-    target.kind === "tile" && target.type === "hiddenPetals"
-  ));
-  const targets = adjacentTargets.filter((target) => (
-    isActionableMeowTarget(state, target)
-  ));
-  if (targets.length === 0) {
-    if (shySpiritWaitingForLight) {
-      return addMessage(
-        state,
-        "The shy spirit needs its nearby lantern first. Find that unlit lantern and Meow beside it.",
-      );
-    }
-    if (hiddenPetalsWaitingForSpirit && !hasCalmedSpirit(state)) {
-      return addMessage(
-        state,
-        "The petals stay hidden. Calm a sakura spirit after lighting a lantern first.",
-      );
-    }
-    return addMessage(state, "Mochi meows softly, but nothing nearby needs help.");
+  const action = canTakeAction(state);
+  if (!action.ok && (state.phase === "forest" || state.phase === "sealedLand")) {
+    return addMessage(state, action.message);
   }
 
-  let board = state.board;
-  const effects = [];
-  const creatures = state.creatures.map((creature) => {
-    const isAdjacent = targets.some((target) => (
-      target.kind === "creature" && target.id === creature.id
-    ));
-    if (!isAdjacent) {
-      return { ...creature };
+  if (state.phase === "forest") {
+    const target = getAdjacentObjects(state)[0];
+    if (!target) {
+      return addMessage(state, "Mochi meows, but no sleeping tree is near.");
     }
-    if (creature.type === "sakuraSpirit" && creature.status === "shy") {
-      effects.push("The lantern light helps a shy sakura spirit feel safe. Petal piles can now be collected!");
-      return { ...creature, status: "following", following: true };
-    }
-    if (creature.type === "sleepyTanuki" && creature.status === "asleep") {
-      if (state.restoredTrees > 0) {
-        effects.push("The sleepy tanuki wakes, stretches, and clears the path.");
-        return { ...creature, status: "awake", following: false };
-      }
-      effects.push("The tanuki snores on. One restored tree may inspire it to wake.");
-      return { ...creature };
-    }
-    if (creature.type === "petalCrow") {
-      const pushedPosition = pushCrow(state, creature);
-      effects.push(
-        pushedPosition.row === creature.row && pushedPosition.col === creature.col
-          ? "The playful crow chirps but has nowhere to hop."
-          : "The playful crow hops politely away from Mochi.",
-      );
-      return { ...creature, ...pushedPosition };
-    }
-    return { ...creature };
-  });
-
-  targets.filter((target) => target.kind === "tile").forEach((target) => {
-    if (target.type === "hiddenPetals") {
-      board = replaceTile(board, target.row, target.col, "petalPile");
-      effects.push("A hidden petal pile rustles into view!");
-    }
-    if (target.type === "lanternOff") {
-      board = replaceTile(board, target.row, target.col, "lanternOn");
-      effects.push("A stone lantern glows with a warm little light.");
-    }
-  });
-
-  const usedState = spendActionPoint({
-    ...state,
-    board,
-    creatures,
-    selectedAction: "meow",
-    player: {
-      ...state.player,
-      energy: state.player.energy - 1,
-    },
-  });
-  return addMessage(usedState, effects.join(" "));
-}
-
-/**
- * Checks for an adjacent damaged tree, a previously calmed spirit, and the
- * petals needed to restore it.
- * @param {GameState} state Current game state.
- * @returns {boolean} True when Restore Tree is currently valid.
- */
-export function canRestoreTree(state) {
-  return isActionAvailable(state)
-    && hasCalmedSpirit(state)
-    && state.player.petals >= 3
-    && getAdjacentPositions(state).some(({ row, col }) => (
-      getTileAt(state, row, col) === "damagedTree"
-    ));
-}
-
-/**
- * Restores the first adjacent damaged tree in deterministic board order.
- * Restore costs one action point and three petals, and remains locked until a
- * sakura spirit has been calmed.
- * @param {GameState} state Current game state.
- * @returns {GameState} A new state, or feedback explaining an invalid action.
- */
-export function restoreTree(state) {
-  if (!isActionAvailable(state)) {
-    return addMessage(state, getActionBlockMessage(state));
-  }
-
-  const tree = getAdjacentPositions(state)
-    .filter(({ row, col }) => getTileAt(state, row, col) === "damagedTree")
-    .sort((first, second) => first.row - second.row || first.col - second.col)[0];
-
-  if (!tree) {
-    return addMessage(state, "There is no damaged cherry tree beside Mochi.");
-  }
-  if (!hasCalmedSpirit(state)) {
-    return addMessage(
-      state,
-      "A sakura spirit must feel safe before Mochi can restore a tree. Light a lantern, then Meow beside a spirit.",
+    const actionState = spendStamina(state);
+    const awakened = awakenTree(actionState, target.id);
+    const freed = freeSpirit(awakened, target.id);
+    const announced = addMessage(
+      freed,
+      `Mochi meows! The tree awakens and a spirit drifts free (${freed.rescuedSpirits}/${freed.totalSpirits}).`,
     );
-  }
-  if (state.player.petals < 3) {
-    return addMessage(state, `Mochi needs ${3 - state.player.petals} more petals to restore this tree.`);
+    return { ...checkForestCompletion(announced), turn: state.turn + 1 };
   }
 
-  const restoredState = spendActionPoint({
-    ...state,
-    board: replaceTile(state.board, tree.row, tree.col, "restoredTree"),
-    selectedAction: "restore",
-    restoredTrees: state.restoredTrees + 1,
-    player: {
-      ...state.player,
-      petals: state.player.petals - 3,
-    },
-  });
-  return checkCompletion(addMessage(
-    restoredState,
-    `Cherry tree ${restoredState.restoredTrees} of ${restoredState.totalTrees} bursts into bloom!`,
-  ));
+  if (state.phase === "sealedLand") {
+    const target = getAdjacentObjects(state)[0];
+    if (!target) {
+      return addMessage(state, "Mochi meows into the dark, but no obelisk is near.");
+    }
+    const broken = destroyObelisk(spendStamina(state), target.id);
+    const defeated = checkBossDefeat(broken);
+    if (defeated.status === "won") {
+      return transitionToEnding(defeated);
+    }
+    return resolveBossTurn(defeated);
+  }
+
+  return addMessage(state, "Mochi meows softly.");
 }
 
 /**
- * Lets Mochi curl up, restoring two energy up to the maximum.
- * @param {GameState} state Current game state.
- * @returns {GameState} A new state.
+ * Moves Mochi through the open shrine gate into the Sealed Land.
+ * @param {GameState} state Current game state standing on the open gate.
+ * @returns {GameState} A new Sealed-Land state, or feedback if the gate is shut.
  */
-export function rest(state) {
-  if (!isActionAvailable(state)) {
-    return addMessage(state, getActionBlockMessage(state));
+export function enterShrineGate(state) {
+  if (!state.shrineGate || !state.shrineGate.open) {
+    return addMessage(state, "The shrine gate is still sealed.");
   }
-
-  const energyGained = Math.min(2, state.player.maxEnergy - state.player.energy);
-  const restedState = spendActionPoint({
-    ...state,
-    selectedAction: "rest",
-    player: {
-      ...state.player,
-      energy: state.player.energy + energyGained,
-    },
-  });
-  return addMessage(
-    restedState,
-    energyGained > 0
-      ? `Mochi curls up beneath the petals and restores ${energyGained} energy.`
-      : "Mochi curls up for a perfectly cozy pause.",
-  );
+  return createSealedLandState(state);
 }
 
 /**
- * Collects the consumable tile under Mochi, if present. Petal piles remain on
- * the board until at least one sakura spirit has been calmed.
- * @param {GameState} state Current game state.
- * @returns {GameState} A new state; non-item tiles leave gameplay values unchanged.
+ * Builds the Sealed Land arena: an open board with four corner obelisks, the
+ * Dark Shrine at the top, and Mochi at the bottom. The boss begins dormant.
+ * @param {GameState} [state] Optional state to carry the log forward.
+ * @returns {GameState} A new Sealed-Land state.
  */
-export function collectTileItem(state) {
-  const { row, col } = state.player;
-  const tile = getTileAt(state, row, col);
-  const itemEffects = {
-    petalPile: {
-      message: `Mochi gathers ${PETALS_PER_PILE} soft sakura petals.`,
-      player: { petals: state.player.petals + PETALS_PER_PILE },
-    },
-    tea: {
-      message: "A warm bowl of tea restores 3 energy.",
-      player: { energy: Math.min(state.player.maxEnergy, state.player.energy + 3) },
-    },
-    fishSnack: {
-      message: "A tiny fish snack restores 2 energy. Delicious!",
-      player: { energy: Math.min(state.player.maxEnergy, state.player.energy + 2) },
-    },
-  };
-  const effect = itemEffects[tile];
-
-  if (!effect) {
-    return { ...state, board: cloneBoard(state.board), player: { ...state.player } };
-  }
-  if (tile === "petalPile" && !hasCalmedSpirit(state)) {
-    return addMessage({
-      ...state,
-      board: cloneBoard(state.board),
-      player: { ...state.player },
-    }, "The petals flutter away from Mochi. Light a lantern and calm a sakura spirit first.");
-  }
-
-  return addMessage({
-    ...state,
-    board: replaceTile(state.board, row, col, "grass"),
-    player: { ...state.player, ...effect.player },
-  }, effect.message);
-}
-
-/**
- * Marks a sakura spirit as helped exactly once.
- * @param {GameState} state Current game state.
- * @param {string} spiritId Spirit identifier.
- * @returns {GameState} A new state, or explanatory feedback for an invalid id.
- */
-export function helpSpirit(state, spiritId) {
-  const spirit = state.creatures.find((creature) => creature.id === spiritId);
-  if (!spirit || spirit.type !== "sakuraSpirit") {
-    return addMessage(state, "That spirit could not be found.");
-  }
-  if (spirit.status === "helped") {
-    return { ...state, creatures: cloneCreatures(state.creatures) };
-  }
-
-  const helpedState = {
-    ...state,
-    creatures: state.creatures.map((creature) => (
-      creature.id === spiritId
-        ? { ...creature, status: "helped", following: false }
-        : { ...creature }
+export function createSealedLandState(state) {
+  const previousLog = state?.log ?? [];
+  const message = "Mochi falls into the Sealed Land. Shatter the four obelisks to free the king!";
+  return {
+    phase: "sealedLand",
+    status: "playing",
+    currentMap: "sealedLand",
+    turn: 1,
+    board: Array.from({ length: SEALED_SIZE }, () => (
+      Array.from({ length: SEALED_SIZE }, () => "ground")
     )),
-    helpedSpirits: state.helpedSpirits + 1,
+    player: { ...SEALED_START },
+    boss: {
+      ...SEALED_BOSS,
+      alive: true,
+      silencedTurns: SILENCE_TURNS,
+      targetedTile: null,
+    },
+    obelisks: cloneObelisks(SEALED_OBELISKS),
+    fishCookies: cloneFishCookies(SEALED_FISH_COOKIES),
+    tombstones: cloneTombstones(SEALED_TOMBSTONES),
+    destroyedTiles: [],
+    destroyedObelisks: 0,
+    message,
+    log: [...previousLog, message],
   };
-  return checkCompletion(addMessage(
-    helpedState,
-    `A sakura spirit finds a blooming home! ${helpedState.helpedSpirits} of ${helpedState.totalSpirits} helped.`,
-  ));
 }
 
-const canCreatureEnter = (state, row, col) => {
-  const tile = getTileAt(state, row, col);
-  return tile !== null && !BLOCKED_TERRAIN.has(tile);
-};
-
 /**
- * Moves each following spirit one deterministic step toward Mochi, then
- * delivers spirits that are adjacent to a restored tree.
- * @param {GameState} state Current game state.
- * @returns {GameState} A new state.
+ * Sets the boss's targeted tile to Mochi's current tile, when the boss is alive
+ * and not silenced. Otherwise the target is cleared.
+ * @param {GameState} state Current Sealed-Land state.
+ * @returns {GameState} A new state with the boss target updated.
  */
-export function updateFollowingSpirits(state) {
-  let nextState = {
+export function selectBossTarget(state) {
+  const active = state.boss.alive && state.boss.silencedTurns === 0;
+  return {
     ...state,
-    creatures: cloneCreatures(state.creatures),
-    board: cloneBoard(state.board),
-  };
-  const followers = nextState.creatures.filter((creature) => (
-    creature.type === "sakuraSpirit" && creature.following
-  ));
-
-  followers.forEach((follower) => {
-    const current = nextState.creatures.find((creature) => creature.id === follower.id);
-    if (
-      isAdjacentToRestoredTree(nextState, current)
-      || canDeliverSpiritWithMochi(nextState, current)
-    ) {
-      nextState = helpSpirit(nextState, current.id);
-      return;
-    }
-
-    const occupied = new Set(
-      nextState.creatures
-        .filter((creature) => creature.id !== current.id && creatureBlocksMovement(creature))
-        .map((creature) => positionKey(creature.row, creature.col)),
-    );
-    const candidates = adjacentPositionsFor(current.row, current.col)
-      .filter(({ row, col }) => (
-        canCreatureEnter(nextState, row, col)
-        && !occupied.has(positionKey(row, col))
-        && !(row === nextState.player.row && col === nextState.player.col)
-      ))
-      .sort((first, second) => (
-        distance(first, nextState.player) - distance(second, nextState.player)
-        || first.row - second.row
-        || first.col - second.col
-      ));
-    const currentDistance = distance(current, nextState.player);
-    const destination = candidates.find((candidate) => (
-      distance(candidate, nextState.player) < currentDistance
-    ));
-
-    if (destination) {
-      nextState = {
-        ...nextState,
-        creatures: nextState.creatures.map((creature) => (
-          creature.id === current.id
-            ? { ...creature, ...destination }
-            : { ...creature }
-        )),
-      };
-    }
-
-    const movedSpirit = nextState.creatures.find((creature) => creature.id === current.id);
-    if (
-      isAdjacentToRestoredTree(nextState, movedSpirit)
-      || canDeliverSpiritWithMochi(nextState, movedSpirit)
-    ) {
-      nextState = helpSpirit(nextState, movedSpirit.id);
-    }
-  });
-
-  return nextState;
-}
-
-const findPetalPiles = (board) => board.flatMap((row, rowIndex) => row
-  .map((tile, colIndex) => ({ tile, row: rowIndex, col: colIndex }))
-  .filter(({ tile }) => tile === "petalPile"));
-
-/**
- * Moves the crow one step toward the nearest visible petal pile. Ties are
- * resolved by target row, target column, then movement row and column. After
- * collecting one pile, the crow becomes satisfied and no longer moves. The
- * crow waits until a calmed spirit has unlocked petal collection.
- * @param {GameState} state Current game state.
- * @returns {GameState} A new state.
- */
-export function moveCrow(state) {
-  const crow = state.creatures.find((creature) => creature.type === "petalCrow");
-  const petalPiles = findPetalPiles(state.board);
-  if (
-    !crow
-    || crow.status === "satisfied"
-    || petalPiles.length === 0
-    || !hasCalmedSpirit(state)
-  ) {
-    return {
-      ...state,
-      board: cloneBoard(state.board),
-      creatures: cloneCreatures(state.creatures),
-    };
-  }
-
-  const target = [...petalPiles].sort((first, second) => (
-    distance(crow, first) - distance(crow, second)
-    || first.row - second.row
-    || first.col - second.col
-  ))[0];
-
-  if (crow.row === target.row && crow.col === target.col) {
-    return addMessage({
-      ...state,
-      board: replaceTile(state.board, target.row, target.col, "grass"),
-      creatures: state.creatures.map((creature) => (
-        creature.id === crow.id
-          ? { ...creature, status: "satisfied" }
-          : { ...creature }
-      )),
-    }, "The playful crow tucks away a petal pile.");
-  }
-
-  const occupied = new Set(
-    state.creatures
-      .filter((creature) => creature.id !== crow.id && creatureBlocksMovement(creature))
-      .map((creature) => positionKey(creature.row, creature.col)),
-  );
-  const candidates = adjacentPositionsFor(crow.row, crow.col)
-    .filter(({ row, col }) => (
-      canCreatureEnter(state, row, col)
-      && !occupied.has(positionKey(row, col))
-      && !(row === state.player.row && col === state.player.col)
-      && distance({ row, col }, target) < distance(crow, target)
-    ))
-    .sort((first, second) => (
-      distance(first, target) - distance(second, target)
-      || first.row - second.row
-      || first.col - second.col
-    ));
-  const destination = candidates[0];
-
-  if (!destination) {
-    return {
-      ...state,
-      board: cloneBoard(state.board),
-      creatures: cloneCreatures(state.creatures),
-    };
-  }
-
-  const reachedPetals = destination.row === target.row && destination.col === target.col;
-  const movedState = {
-    ...state,
-    board: reachedPetals
-      ? replaceTile(state.board, target.row, target.col, "grass")
-      : cloneBoard(state.board),
-    creatures: state.creatures.map((creature) => (
-      creature.id === crow.id
-        ? {
-          ...creature,
-          ...destination,
-          status: reachedPetals ? "satisfied" : creature.status,
-        }
-        : { ...creature }
-    )),
-  };
-  return reachedPetals
-    ? addMessage(movedState, "The playful crow tucks away a petal pile.")
-    : movedState;
-}
-
-/**
- * Ends the player phase early or after all action points are spent, runs the
- * deterministic garden phase, increments the round, and refreshes action points.
- * @param {GameState} state Current game state.
- * @returns {GameState} A new state.
- */
-export function endPlayerTurn(state) {
-  if (state.status === "completed") {
-    return addMessage(state, getActionBlockMessage(state));
-  }
-  if (state.turn !== "player") {
-    return addMessage(state, "The garden turn is already in progress.");
-  }
-  return runGardenTurn({
-    ...state,
-    turn: "garden",
-    message: "Petals drift as the garden takes its turn...",
-    gameLog: [...state.gameLog, "Petals drift as the garden takes its turn..."],
-  });
-}
-
-/**
- * Resolves spirit following and crow movement, then returns control to Mochi.
- * @param {GameState} state Current game state with turn set to "garden".
- * @returns {GameState} A new player-turn state.
- */
-export function runGardenTurn(state) {
-  if (state.status === "completed") {
-    return addMessage(state, getActionBlockMessage(state));
-  }
-  if (state.turn !== "garden") {
-    return addMessage(state, "The garden waits until Mochi ends the player turn.");
-  }
-
-  const spiritsUpdated = updateFollowingSpirits(state);
-  const crowUpdated = moveCrow(spiritsUpdated);
-  const nextRound = {
-    ...crowUpdated,
-    turn: "player",
-    round: state.round + 1,
-    selectedAction: "walk",
-    player: {
-      ...crowUpdated.player,
-      actionPoints: crowUpdated.player.maxActionPoints,
+    boss: {
+      ...state.boss,
+      targetedTile: active ? { ...state.player } : null,
     },
   };
-  return checkCompletion(addMessage(nextRound, `Turn ${nextRound.round}: Mochi is ready to explore.`));
 }
 
 /**
- * Completes the game only when all trees and spirits are finished and Mochi is
- * standing on the shrine.
- * @param {GameState} state Current game state.
- * @returns {GameState} A new state, completed when every objective is satisfied.
+ * Resolves the Dark Shrine's turn: a player still on the targeted tile dies; an
+ * escaped target crumbles into void. Silence then ticks down and, if the boss is
+ * awake, it marks Mochi's tile for next turn. Finally the turn counter advances.
+ * @param {GameState} state Current Sealed-Land state.
+ * @returns {GameState} A new state.
  */
-export function checkCompletion(state) {
-  const atShrine = getTileAt(state, state.player.row, state.player.col) === "shrine";
-  const complete = state.restoredTrees >= state.totalTrees
-    && state.helpedSpirits >= state.totalSpirits
-    && atShrine;
+export function resolveBossTurn(state) {
+  if (state.phase !== "sealedLand" || state.status !== "playing") {
+    return state;
+  }
 
-  if (!complete || state.status === "completed") {
+  const target = state.boss.targetedTile;
+  if (target && samePosition(target, state.player)) {
     return {
-      ...state,
-      board: cloneBoard(state.board),
-      player: { ...state.player },
-      creatures: cloneCreatures(state.creatures),
-      gameLog: [...state.gameLog],
+      ...addMessage(state, "The Dark Shrine's gaze falls — Mochi is caught on the cursed tile!"),
+      status: "lost",
+      boss: { ...state.boss, targetedTile: null },
     };
   }
 
-  const completedState = {
+  let next = { ...state, boss: { ...state.boss } };
+  if (target) {
+    next = addMessage({
+      ...next,
+      destroyedTiles: [...state.destroyedTiles, target],
+      boss: { ...next.boss, targetedTile: null },
+    }, "A cursed tile crumbles into the void.");
+  }
+
+  const silencedTurns = Math.max(0, next.boss.silencedTurns - 1);
+  next = { ...next, boss: { ...next.boss, silencedTurns } };
+  next = selectBossTarget(next);
+  return { ...next, turn: next.turn + 1 };
+}
+
+/**
+ * Destroys an obelisk by id and silences the Dark Shrine for five turns.
+ * @param {GameState} state Current Sealed-Land state.
+ * @param {string} obeliskId Obelisk identifier.
+ * @returns {GameState} A new state, or feedback for an invalid or broken obelisk.
+ */
+export function destroyObelisk(state, obeliskId) {
+  const obelisk = (state.obelisks ?? []).find((candidate) => candidate.id === obeliskId);
+  if (!obelisk) {
+    return addMessage(state, "There is no obelisk to break here.");
+  }
+  if (obelisk.destroyed) {
+    return { ...state, obelisks: cloneObelisks(state.obelisks) };
+  }
+  const destroyedObelisks = state.destroyedObelisks + 1;
+  const shattered = {
     ...state,
-    status: "completed",
-    starRating: calculateStarRating(state),
+    obelisks: state.obelisks.map((candidate) => (
+      candidate.id === obeliskId ? { ...candidate, destroyed: true } : { ...candidate }
+    )),
+    destroyedObelisks,
+    boss: { ...state.boss, silencedTurns: SILENCE_TURNS, targetedTile: null },
   };
   return addMessage(
-    completedState,
-    `The sakura garden is restored! Mochi earns ${completedState.starRating} star${completedState.starRating === 1 ? "" : "s"}.`,
+    shattered,
+    `An obelisk shatters (${destroyedObelisks}/${TOTAL_OBELISKS})! The Dark Shrine is silenced for ${SILENCE_TURNS} turns.`,
   );
 }
 
 /**
- * Calculates the cozy completion rating from the current round.
- * @param {GameState} state Completed or in-progress game state.
- * @returns {1|2|3} Three stars by turn 16, two by turn 24, otherwise one.
+ * Defeats the Dark Shrine once all four obelisks are destroyed.
+ * @param {GameState} state Current Sealed-Land state.
+ * @returns {GameState} A new state; the boss dies and the game is won when ready.
  */
-export function calculateStarRating(state) {
-  if (state.round <= 16) {
-    return 3;
+export function checkBossDefeat(state) {
+  if (state.destroyedObelisks >= TOTAL_OBELISKS && state.boss.alive) {
+    return addMessage({
+      ...state,
+      status: "won",
+      boss: { ...state.boss, alive: false, targetedTile: null },
+    }, "The final obelisk falls and the Dark Shrine crumbles to dust!");
   }
-  if (state.round <= 24) {
-    return 2;
+  return { ...state, boss: { ...state.boss } };
+}
+
+/**
+ * Moves a won game to the ending story screen.
+ * @param {GameState} state Current game state.
+ * @returns {GameState} A new ending-phase state, or feedback if not yet won.
+ */
+export function transitionToEnding(state) {
+  if (state.status !== "won") {
+    return addMessage(state, "The king is not free yet.");
   }
-  return 1;
+  return {
+    ...state,
+    phase: "ending",
+    currentMap: "ending",
+    message: "The king of the Cat Kingdom is rescued! Mochi is a hero.",
+    log: [...state.log, "The king of the Cat Kingdom is rescued! Mochi is a hero."],
+  };
+}
+
+/**
+ * Skips Mochi's action and lets the current map's turn resolve (a Sealed-Land
+ * wait runs the boss turn; the forest simply advances the turn counter).
+ * @param {GameState} state Current game state.
+ * @returns {GameState} A new state.
+ */
+export function endTurn(state) {
+  if (state.status !== "playing") {
+    return state;
+  }
+  const recovering = state.player?.stunnedTurns > 0;
+  const recoveredState = recovering
+    ? addMessage({
+      ...state,
+      player: { ...state.player, stunnedTurns: 0 },
+    }, "Mochi shakes off the tombstone curse and can act again.")
+    : state;
+
+  if (state.phase === "sealedLand") {
+    return resolveBossTurn(addMessage(
+      recoveredState,
+      recovering ? "The Dark Shrine keeps watching while Mochi recovers." : "Mochi waits, watching the shadows.",
+    ));
+  }
+  if (state.phase === "forest") {
+    return { ...addMessage(recoveredState, "Mochi pauses beneath the sakura."), turn: state.turn + 1 };
+  }
+  return state;
 }

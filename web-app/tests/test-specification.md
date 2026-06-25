@@ -1,246 +1,169 @@
-# Mochi's Sakura Garden Unit Test Specification
+# Unit Test Specification — Mochi and the Shrine of Shadows
 
-The tests describe observable game behaviour. They do not depend on private
-helper functions or reproduce the implementation.
+The tests describe observable game behaviour with Given / When / Then. They do
+not depend on private helpers or reproduce the implementation.
 
-## 1. Initial state
+## Lifecycle
+
+### 1. Intro start
 
 **Given** a new game
 **When** the initial state is created
-**Then** the board is 7 x 7, Mochi starts with 8 energy and 2 action points,
-three trees and two spirits are required, and the game is in the player turn.
-The fixed map places damaged trees at A1, C4, and G7, a blossom tree at A7,
-spirits at B3 and E7, the tanuki at A6, and the crow at C7. Connected route
-tiles at C1, D1, D5, F3, and F5 keep every objective reachable. The extra
-petal pile is at D6 rather than D5 so the C3-to-B4 corridor stays visibly open.
+**Then** the phase is `intro`, the status is `playing`, and the turn is 0.
 
-## 2. Valid movement
+### 2. Starting the forest
 
-**Given** Mochi has an action point and a walkable adjacent tile
-**When** Mochi walks onto that tile
-**Then** Mochi changes position and spends one action point.
+**Given** the intro state
+**When** the game is started
+**Then** the phase becomes `forest`, Mochi stands at G1, three dormant trees
+exist, fish-cookie refills exist, the shrine gate is sealed, and no spirits are
+freed.
 
-## 3. Invalid movement
+## Map 1 — Sakura Forest
 
-**Given** a playing state
-**When** an unsupported direction is supplied
-**Then** Mochi stays in place, spends no action point, and receives feedback.
+### 3. Move up to two tiles
 
-## 4. Moving outside the board
+**Given** an open path ahead
+**When** Mochi moves two steps in one turn
+**Then** Mochi ends two tiles away and the turn advances by one, without
+mutating the input state, and one stamina is spent.
 
-**Given** Mochi is at the board edge
-**When** Mochi attempts to walk beyond the edge
-**Then** Mochi stays inside the board and spends no action point.
+### 4. Blocked movement
 
-## 5. Pond and rock blocking
+**Given** an obstacle (a bush) beside Mochi
+**When** Mochi tries to move into it, or pass through it on a two-step move
+**Then** Mochi stays in place and the turn does not advance.
 
-**Given** a pond or rock is adjacent to Mochi
-**When** Mochi tries to enter it
-**Then** movement is blocked and no action point is spent.
+### 5. Fish cookie refill
 
-**Given** the shrine is adjacent but any tree or spirit objective is incomplete
-**When** Mochi tries to enter the shrine tile
-**Then** Mochi stays in place, spends no action point, and receives a clear
-message describing the remaining objectives.
+**Given** Mochi has low stamina and stands beside a fish cookie
+**When** Mochi moves onto the fish cookie
+**Then** stamina is restored to full and that fish cookie is marked collected.
 
-**Given** all trees and spirits are complete
-**When** Mochi enters the shrine tile
-**Then** the shrine allows entry and the game completes.
+### 6. Exhausted actions are blocked
 
-## 6. Occupied creature blocking
+**Given** Mochi has no stamina
+**When** Mochi tries to Move or Meow
+**Then** the action is blocked, the turn does not advance, and no progress is
+made.
 
-**Given** a shy spirit, sleeping tanuki, or crow occupies an adjacent tile
-**When** Mochi tries to enter that tile
-**Then** movement is blocked.
+### 7. Awakening a tree and freeing a spirit
 
-## 7. Petal collection
+**Given** Mochi stands adjacent to a dormant tree
+**When** Mochi meows
+**Then** the tree becomes awakened, its spirit is freed, the rescued-spirit
+count rises by one, and the turn advances.
 
-**Given** at least one spirit has been calmed and a visible petal pile is on a
-walkable destination
-**When** Mochi walks onto it
-**Then** three petals are added and the tile becomes grass.
+### 8. Spirits are counted once
 
-**Given** no spirit has been calmed
-**When** Mochi walks onto a visible petal pile
-**Then** movement spends one action point, but the pile remains and no petals
-are added.
+**Given** an awakened tree whose spirit is already free
+**When** the spirit is freed again
+**Then** the rescued-spirit count does not rise a second time.
 
-**Given** a locked petal pile is adjacent
-**When** movement availability is checked
-**Then** the tile remains walkable and is not treated as blocking terrain.
+### 9. Gate stays closed until all spirits are freed
 
-**Given** Mochi is at C3 while the B3 spirit and C4 tree block the direct steps
-**When** Mochi follows D3, D4, D5, C5, B5, and B4
-**Then** Mochi reaches the A4 lantern interaction position without crossing a
-creature, tree, or petal pile.
+**Given** fewer than three spirits freed
+**When** forest completion is checked
+**Then** the shrine gate remains sealed.
 
-## 8. Tea collection
+### 10. Gate opens on the third spirit
 
-**Given** Mochi has missing energy and tea is on the destination
-**When** Mochi walks onto the tea
-**Then** energy is restored up to the maximum and the tile becomes grass.
+**Given** two spirits already freed and Mochi beside the last dormant tree
+**When** Mochi meows
+**Then** the third spirit is freed and the central shrine gate opens.
 
-## 9. Fish snack collection
+### 11. Entering the open gate transitions to the Sealed Land
 
-**Given** Mochi has missing energy and a fish snack is on the destination
-**When** Mochi walks onto the snack
-**Then** two energy is restored up to the maximum and the tile becomes grass.
+**Given** the shrine gate is open and Mochi is beside it
+**When** Mochi moves onto the gate
+**Then** the phase becomes `sealedLand` with four obelisks and Mochi at the
+bottom.
 
-## 10. Meow calming spirit
+### 12. A closed gate cannot be entered
 
-**Given** a shy sakura spirit is adjacent, its nearby lantern is lit, and Mochi
-has energy
-**When** Meow is used
-**Then** the spirit becomes a follower, one energy is spent, and one action
-point is spent.
+**Given** the shrine gate is still sealed
+**When** Mochi tries to step onto it
+**Then** Mochi stays in the forest.
 
-**Given** a shy spirit is adjacent but its nearby lantern is still off
-**When** Meow is used
-**Then** the spirit stays shy, no energy or action point is spent, and the
-message directs Mochi to the lantern.
+## Map 2 — Sealed Land
 
-## 11. Meow revealing hidden petals
+### 13. Open arena movement
 
-**Given** hidden petals are adjacent and a spirit has been calmed
-**When** Meow is used
-**Then** the hidden tile becomes a visible petal pile.
+**Given** the Sealed Land
+**When** Mochi moves across open ground
+**Then** Mochi reaches the destination and the turn advances.
 
-## 12. Meow waking tanuki
+### 14. Expanded Sealed-Land layout
 
-**Given** the sleeping tanuki is adjacent and at least one tree is restored
-**When** Meow is used
-**Then** the tanuki wakes and no longer blocks movement.
+**Given** the Sealed Land has just been created
+**When** the map data is inspected
+**Then** it contains eight fish-cookie refills, ten tombstone hazards, and route
+refills near both lower-left and upper-right obelisk paths.
 
-## 13. Tanuki remaining asleep before requirement is met
+### 15. Destroying an obelisk
 
-**Given** the sleeping tanuki is adjacent and no tree is restored
-**When** Meow is used
-**Then** the tanuki remains asleep and the message explains the requirement.
+**Given** Mochi stands adjacent to a standing obelisk
+**When** Mochi meows
+**Then** the obelisk becomes destroyed and the destroyed count rises.
 
-## 14. Restore tree requirements
+### 16. Silencing the boss
 
-**Given** a spirit has been calmed, but Mochi lacks three petals or has no
-adjacent damaged tree
-**When** Restore is attempted
-**Then** no tree changes, no petals are spent, and no action point is spent.
+**Given** an obelisk is destroyed
+**When** the destruction resolves
+**Then** the Dark Shrine is silenced for five turns.
 
-**Given** Mochi has three petals and an adjacent damaged tree but no spirit has
-been calmed
-**When** Restore is attempted
-**Then** restoration remains locked, resources are unchanged, and the message
-explains the required quest order.
+### 17. Boss targeting
 
-## 15. Tree restoration
+**Given** the boss is awake (not silenced)
+**When** the boss selects a target
+**Then** the tile Mochi stands on becomes the targeted tile; a silenced boss
+marks no tile.
 
-**Given** a spirit has been calmed and Mochi has three petals while standing
-beside a damaged tree
-**When** Restore is used
-**Then** the tree becomes restored, three petals and one action point are spent,
-and the restored-tree count increases.
+### 18. Death on the targeted tile
 
-## 16. Spirit following
+**Given** Mochi remains on the targeted tile
+**When** the turn ends
+**Then** the status becomes `lost`.
 
-**Given** a calmed spirit is following Mochi
-**When** the garden turn runs
-**Then** the spirit moves at most one open orthogonal tile closer to Mochi.
+### 19. Escaping turns the tile to void
 
-## 17. Spirit becoming helped
+**Given** Mochi has left the targeted tile
+**When** the boss turn resolves
+**Then** the status stays `playing`, that tile becomes void, and the boss marks
+Mochi's new tile.
 
-**Given** a following spirit is adjacent to a restored tree
-**When** spirit following is updated
-**Then** the spirit becomes helped, stops following, and the helped count
-increases exactly once.
+### 20. Void tiles are impassable
 
-**Given** Mochi and a following spirit are adjacent, and Mochi is beside a
-restored tree
-**When** spirit following is updated
-**Then** the spirit is delivered to that tree without another permanent action.
+**Given** a tile has been turned to void
+**When** Mochi tries to step onto it
+**Then** movement is blocked and Mochi stays in place.
 
-## 18. Crow movement
+### 21. Tombstone recovery
 
-**Given** a spirit has unlocked petals, and a crow has at least one reachable
-visible petal pile
-**When** the crow moves
-**Then** it moves one open orthogonal tile toward the nearest pile using
-deterministic tie-breaking.
+**Given** a tombstone in the Sealed Land
+**When** Mochi steps onto it
+**Then** Mochi becomes stunned for one recovery turn, cannot act while stunned,
+and recovers after ending the turn.
 
-**Given** no spirit has been calmed
-**When** the garden attempts to move the crow
-**Then** the crow waits and leaves every petal pile unchanged.
+### 22. Boss defeat and the ending
 
-## 19. Crow collecting a petal pile
+**Given** three obelisks are already destroyed and Mochi is beside the fourth
+**When** Mochi meows
+**Then** the fourth obelisk shatters, the boss dies, the status becomes `won`,
+and the phase becomes `ending`.
 
-**Given** a visible petal pile is one step from the crow
-**When** the crow moves onto it
-**Then** the crow changes position and the pile becomes grass.
+### 23. Completion helpers
 
-**Given** the crow has already collected one petal pile
-**When** later garden turns run
-**Then** the satisfied crow stays in place and leaves remaining petals for
-Mochi, ensuring the garden remains completable.
-
-## 20. Rest restoring energy
-
-**Given** Mochi has missing energy and an action point
-**When** Rest is used
-**Then** up to two energy is restored and one action point is spent.
-
-## 21. Action point spending
-
-**Given** Mochi has one action point
-**When** a valid action is used
-**Then** the action point reaches zero and further actions are blocked until the
-turn ends.
-
-## 22. End turn behaviour
-
-**Given** it is the player turn
-**When** the player ends the turn
-**Then** garden behaviour resolves, the round increases, control returns to the
-player, and action points reset to two.
-
-## 23. Completion condition
-
-**Given** all three trees are restored and both spirits are helped
-**When** Mochi reaches the shrine
-**Then** the game becomes completed and a star rating is stored.
-
-**Given** any objective is incomplete
-**When** Mochi reaches the shrine
-**Then** the game remains in progress.
-
-## 24. Star rating
-
-**Given** completion occurs by turn 16, by turn 24, or later
-**When** the rating is calculated
-**Then** the result is respectively three, two, or one star.
-
-## 25. Actions blocked after completion
-
-**Given** the game is completed
-**When** Walk, Meow, Restore, Rest, or End Turn is attempted
-**Then** gameplay values do not change and completion is preserved.
-
-## Additional quality checks
-
-- Reset returns independent board, player, and creature objects.
-- Game actions do not mutate their input state.
-- Lanterns change from off to on through contextual Meow.
-- Each spirit requires its paired nearby lantern before it can be calmed.
-- Petal collection and tree restoration remain locked until a spirit is
-  calmed.
-- Meow pushes the crow away when a valid open tile exists.
-- Meow prefers not to push the crow onto a petal pile.
-- After the crow collects one pile, at least nine visible petals remain, so all
-  three trees can still be restored without finding the optional hidden pile.
-- Invalid garden-turn calls provide feedback without resolving behaviour.
-- A strict ordered action sequence from the real initial state lights both
-  lanterns, calms and helps both spirits, restores all three trees, and reaches
-  the shrine on turn 23 for two stars. Every action is also checked to spend
-  AP, so a blocked step cannot silently pass.
+**Given** all four obelisks destroyed
+**When** boss defeat is checked
+**Then** the status is `won`, the boss is no longer alive, and transitioning to
+the ending sets the phase to `ending`.
 
 ## Intentional fault checks
 
 For each main behaviour group, one rule was temporarily changed to an incorrect
-version. The related test failed, showing that it could detect the fault. The
-correct rule was then restored and the same test passed.
+version (for example: a move spending no turn, a fish cookie not restoring
+stamina, exhausted actions still being allowed, a freed spirit counted twice, a
+tombstone not applying recovery, an obelisk not silencing the boss, the death
+check disabled). The related test failed, showing it could detect the fault, and
+the correct rule was restored.

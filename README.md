@@ -1,94 +1,87 @@
-# Mochi's Sakura Garden
+# Mochi and the Shrine of Shadows
 
 **CID:** 02580218
 
-Mochi's Sakura Garden is a cozy, turn-based 7 x 7 browser puzzle written in
-plain JavaScript. Mochi is a small white-and-brown cat restoring a peaceful
-garden by collecting petals, befriending spirits, blooming three cherry trees,
-and finally visiting the shrine.
+A cute, turn-based, board-based browser game written in plain JavaScript. You
+play **Mochi**, a small cat of the Cat Kingdom, sent to rescue the King from a
+monster sealed inside a dark shrine.
 
-There is no combat or lose condition. The crow and tanuki only create small
-route puzzles, and the fixed map always has a route to the shrine.
+The game runs in four phases: an **intro** story screen, the **Sakura Forest**,
+the **Sealed Land**, and an **ending** screen.
 
-## Objective
+## Story
 
-Complete the garden in a clear cozy sequence:
+The King has been captured by the Dark Shrine. Mochi must travel into the Sakura
+Forest, awaken its three sleeping spirits to open the sealed gate, then enter the
+Sealed Land and shatter the Dark Shrine to rescue the King.
 
-1. Meow beside each stone lantern to light it.
-2. Use the nearby lantern light to calm its shy sakura spirit.
-3. A calmed spirit unlocks petal collection. Gather three petals, restore a
-   tree, and guide the spirit to its new blooming home.
-4. Reach the shrine after the other wishes are complete. The shrine stays
-   locked and cannot be entered until all trees and spirits are finished.
+## Turn system
 
-This creates a repeatable quest loop: **lantern → spirit → petals → tree**.
-The first loop uses the F6 lantern, E7 spirit, F5 petals, and G7 tree. The
-second begins at the A4 lantern and B3 spirit, then continues through the
-remaining petals and trees.
+There is exactly **one action per turn**. Each turn you choose either:
 
-Completion awards three stars by turn 16, two stars by turn 24, and one star
-after that.
+- **Move** — walk 1 or 2 tiles, orthogonally, without passing through obstacles
+  or leaving the board; or
+- **Meow** — the only interaction. Its effect depends on what is adjacent.
 
-## Rules and actions
+Moving and Meowing cost **1 stamina**. Mochi has 5 stamina, and fish-cookie
+refills placed on the route restore stamina to full.
 
-Each player turn starts with two action points.
+## Map 1 — Sakura Forest
 
-- **Walk:** Move one tile up, right, down, or left for 1 AP. Ponds, rocks,
-  static objects, and blocking creatures cannot be entered. Petals, tea, and
-  fish snacks are collected automatically, but petal piles wait until a spirit
-  has been calmed.
-- **Meow:** Spend 1 AP and 1 energy for contextual interaction. Meow can calm a
-  spirit, wake the tanuki after a tree is restored, reveal hidden petals, light
-  a lantern, or move the crow away. Each spirit first needs its nearby lantern.
-- **Restore:** While adjacent to a damaged tree, spend 1 AP and 3 petals to
-  restore it. Restore remains locked until a spirit has been calmed.
-- **Rest:** Spend 1 AP to restore up to 2 energy. Walking and restoring never
-  consume energy.
-- **End turn:** Resolve the deterministic garden turn. Following spirits move
-  toward Mochi. The crow waits until spirits unlock petal collection, then
-  moves toward the nearest visible pile. After taking one pile, the satisfied
-  crow stops collecting so the garden remains completable.
+- Three dormant sakura trees each seal a spirit.
+- Stand next to a tree and **Meow** to awaken it and free its spirit.
+- When all three spirits are free, the central shrine gate opens.
+- Move onto the open gate to travel to the Sealed Land.
+- Ponds, rocks, bushes, and fences block movement.
+- Fish cookies are placed on the intended path. Mochi must collect enough of
+  them to wake every tree and still reach the shrine gate.
 
-Petal piles give three petals. Tea restores three energy and fish snacks
-restore two, up to Mochi's maximum of eight.
+## Map 2 — Sealed Land
 
-The fixed garden includes five visible petal piles. The D6 pile is kept off the
-main C3-to-B4 corridor so it never looks like a route blocker. The crow may
-take one, so
-the remaining route still provides more than the nine petals needed for all
-three trees. The main route is a connected loop through C1, C4, G7, and the
-central shrine; hidden petals at B7 are an optional bonus rather than a
-requirement for completion.
+- A 9×9 open arena with four obelisks in the corners and the **Dark Shrine** at the
+  top.
+- Stand next to an obelisk and **Meow** to destroy it.
+- Destroy all four obelisks and the Dark Shrine falls — the King is rescued.
+- The Sealed Land now has 8 fish cookies, giving several route and emergency
+  stamina refills between obelisks.
+- It also has 10 tombstones clustered around the inner arena. Stepping on one is
+  allowed, but Mochi must spend the next turn recovering before acting again.
+
+### The boss mechanic
+
+When the Dark Shrine is **awake**, each turn it marks the tile Mochi is standing
+on. At the end of your turn:
+
+- if you are **still on the marked tile**, you are caught and the game is lost;
+- otherwise the marked tile **crumbles into void** and can never be entered
+  again.
+
+Because standing still (Meowing) on a marked tile is fatal, obelisks can only be
+safely destroyed while the boss is **silenced**. Destroying an obelisk silences
+the Dark Shrine for **5 turns**, and the shrine begins dormant — so the game is a
+race to chain the four obelisks before silence runs out and the floor starts
+collapsing beneath you.
 
 ## Controls
 
-- Arrow keys or `WASD`: walk.
-- Click a highlighted adjacent tile: walk there.
-- `1`: focus the Walk control.
-- `2`: Meow.
-- `3`: Restore.
-- `4`: Rest.
-- Buttons: all actions, End turn, and New garden.
-
-Each player action has visible pixel feedback on Mochi: walking uses a hopping
-step, Meow opens Mochi's mouth with a speech bubble and sound ring, Restore
-adds a blossom-casting motion and tree burst, and Rest swaps to a curled sprite
-with a floating heart. Item collection also has its own celebratory hop.
+- Arrow keys or `WASD`: move one tile (one turn).
+- Click a highlighted tile (1–2 tiles away): move there (one turn).
+- `M` or `Space`, or the **Meow** button: Meow.
+- After moving or Meowing, press **Next Turn** before taking another action.
+- **End Turn** button: skip the current action; if cursed by a tombstone, it
+  becomes **Recover** and clears the lost-action turn.
+- **Restart** / **Play Again** / **Try Again**: start over.
 
 ## Run the game
 
-Node 18 or newer is recommended. The included server has no runtime
-dependencies.
+Node 18 or newer. The bundled server has no runtime dependencies.
 
 ```bash
 npm start
 ```
 
-Open [http://localhost:8080](http://localhost:8080).
-
-The `web-app` folder can also be served with VS Code Live Server. Opening the
-HTML directly as a `file://` page is not recommended because browsers commonly
-restrict ES module imports there.
+Open [http://localhost:8080](http://localhost:8080). (Serving over `http://` is
+required because the page uses ES module imports.)
 
 ## Run tests
 
@@ -96,119 +89,116 @@ restrict ES module imports there.
 npm test
 ```
 
-The project uses Node's built-in test runner. The 46 tests cover movement,
-items, Meow interactions, tree restoration, spirit following, crow movement,
-turns, completion and scoring. One test plays the fixed map from the starting
-position to the shrine. Its route completes on turn 23 with two stars.
+Node's built-in test runner. The 23 tests cover both maps: moving up to two
+tiles, blocked movement, awakening trees, freeing spirits, gate gating and
+transition, stamina spending, fish-cookie refills, exhausted-action blocking,
+open-arena movement, the expanded Sealed-Land fish/tombstone layout, tombstone
+recovery, destroying obelisks, boss silencing and targeting, death on a targeted
+tile, void tiles, boss defeat, the ending, and a complete route from intro to
+victory.
 
-The behaviour specification is in
-`web-app/tests/test-specification.md`.
-
-### Test verification
-
-To check that the tests detect real faults, one rule from each main group was
-temporarily changed:
-
-- movement did not spend AP;
-- petal piles gave the wrong amount;
-- Meow did not spend energy;
-- the garden turn did not increment the round;
-- shrine completion was disabled.
-
-The relevant tests failed for each change. The correct rules were then restored
-and the full suite passed.
+The behaviour specification is in `web-app/tests/test-specification.md`.
 
 ## Lint
-
-The coursework does not specify a linter, so the project uses a small ESLint
-configuration for browser modules, the Node server, and Node tests.
-
-Install the development tool locally, run lint, and do not submit the generated
-`node_modules` folder:
 
 ```bash
 npm install
 npm run lint
 ```
 
+A small ESLint config for browser modules, the Node server, and Node tests. Do
+not commit the generated `node_modules` folder.
+
+## Generate API Docs
+
+The public game API is documented with JSDoc comments in `web-app/game.js`.
+Generate browsable documentation with:
+
+```bash
+npm run docs
+```
+
+This writes generated files to `docs/api`, which is ignored because the source
+of truth is the documented module and `web-app/API.md`.
+
 ## Console simulation
 
-The rules module works without the browser:
+The rules module runs without the browser:
 
 ```js
 import {
-  createInitialState,
-  endPlayerTurn,
-  movePlayer,
-  restoreTree,
-  useMeow,
+  createInitialState, startGame, movePlayer, useMeow,
 } from "./web-app/game.js";
 
-let game = createInitialState();
-game = movePlayer(game, "up");
-game = useMeow(game);       // Context decides whether anything is nearby.
-game = restoreTree(game);   // Invalid attempts return useful feedback.
-game = endPlayerTurn(game);
-
-console.log(game.round, game.player, game.message);
+let game = createInitialState();   // intro
+game = startGame(game);            // enter the forest
+game = movePlayer(game, ["up", "up"]);
+game = useMeow(game);              // wake an adjacent tree
+console.log(game.phase, game.player, game.message);
 ```
 
-Every action returns a new state, so the same module can be used by the browser,
-tests and a console script.
+Every action returns a new state, so the same module drives the browser, the
+tests, and a console script.
 
 ## Architecture
 
 ```text
 web-app/
-  index.html                 Semantic page structure
-  style.css                  Responsive pixel-art presentation
-  main.js                    DOM rendering, input, and short UI effects
-  game.js                    All game rules and state transitions
-  API.md                     Exported game-module contract
-  server.js                  Dependency-free local HTTP server
+  index.html   Four phase screens (intro, play board, ending)
+  style.css    Pastel forest + dark Sealed-Land pixel presentation
+  main.js      DOM rendering, input, screen switching
+  game.js      All game rules and state transitions
+  API.md       Exported game-module contract
+  server.js    Dependency-free local HTTP server
   tests/
-    game.test.js             Node unit tests
-    test-specification.md    Given / When / Then specification
-
-eslint.config.js
-package.json
-README.md
+    game.test.js
+    test-specification.md
 ```
 
-`main.js` imports and calls `game.js`; it does not implement movement,
-collection, interaction, creature, turn, scoring, or completion rules. The
-board contains only terrain/static objects, while Mochi and creatures are
-stored separately.
+`main.js` imports and calls `game.js`; it never decides movement validity, tree
+awakening, gate opening, boss targeting, or win/lose conditions itself. The
+boards hold terrain only — Mochi, trees, the boss, and obelisks are stored
+separately. The module uses pure functions and array methods (`map`, `filter`,
+`some`, `every`, `flatMap`).
 
-The module uses pure functions where practical. Board and creature changes use
-array methods such as `map`, `filter`, `find`, `some`, `every`, and `flatMap`.
+## Assessment Checklist
 
-The full documented contract is in `web-app/API.md`, with matching JSDoc in
-`web-app/game.js`.
+- **Game Module API:** `web-app/API.md` and JSDoc in `web-app/game.js` document
+  exported functions, state types, invalid actions, and return values.
+- **Game Module Implementation:** `web-app/game.js` contains the pure game
+  rules and supports console simulation without the browser.
+- **Unit Test Specification:** `web-app/tests/test-specification.md` describes
+  behaviour in Given / When / Then form.
+- **Unit Test Implementation:** `web-app/tests/game.test.js` uses Node's test
+  runner and includes a complete route from intro to victory.
+- **Web Application:** `index.html`, `style.css`, and `main.js` keep structure,
+  styling, and behaviour separate, while the UI calls the game module for rules.
 
-## Accessibility review
+## Accessibility
 
-- Semantic header, main, sections, aside, headings, lists, buttons, and
-  definition lists structure the page.
-- Every board cell is a real button with row, column, tile, creature status,
-  Mochi position, and movement availability in its `aria-label`.
-- Arrow keys, `WASD`, number shortcuts, board-cell clicks, and buttons support
-  keyboard-only play.
-- Strong visible focus outlines are independent of colour.
-- The current message uses `aria-live="polite"`.
-- Player/garden turn, AP, insufficient energy, insufficient petals, blocked
-  movement, quest order, locked petals and trees, all creature statuses, tree
-  and lantern states, shrine progress, completion, and star rating are
-  communicated with text as well as colour.
-- Dark outlines and text on light solid backgrounds provide strong contrast.
-- `prefers-reduced-motion` removes decorative and sprite animation, and the
-  garden-turn display delay is shortened.
-- The board remains square. Controls stay beside the map on desktop and move
-  below it on narrower screens.
+- Semantic sections, headings, lists, and real `<button>` elements.
+- Every board cell is a button with a descriptive `aria-label` (coordinate,
+  contents, danger state, Mochi's position).
+- Full keyboard play: arrows/`WASD` to move, `M`/`Space` to Meow, buttons for
+  End Turn and Restart; visible focus outlines independent of colour.
+- `aria-live` message region; the lost state uses an `alertdialog`.
+- Status (phase, turn, spirits, obelisks, gate, boss silence) is shown as text,
+  not colour alone.
+- `prefers-reduced-motion` disables animations.
+
+## Assets
+
+Pixel-art files live in `web-app/assets/`. The project uses local images for
+Mochi's action poses, the crowned king cat, sakura trees and spirits, fish
+cookies, tombstones, the intro
+story art, the ending art, shrine gates, forest tiles, Sealed-Land floor/void
+tiles, obelisks, and the Dark Shrine. Larger supplied sheets are kept in the
+assets folder, and board-sized transparent sprites are cropped from them for the
+playable map.
 
 ## Known limitations
 
-- The garden uses one fixed map rather than generated maps.
-- State is held in memory; refreshing the page starts a new garden.
-- Detailed local pixel sprites are stored in `web-app/assets`, while board
-  textures, highlights, and interface panels are drawn with CSS.
+- The two maps are fixed, hand-validated layouts rather than generated.
+- State is held in memory; refreshing the page restarts from the intro.
+- The Sealed Land is a 9×9 board inspired by the supplied full-map reference,
+  while the playable state still tracks each tile separately for testing.

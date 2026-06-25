@@ -13,7 +13,7 @@ const contentTypes = {
   ".png": "image/png",
 };
 
-createServer(async (request, response) => {
+const server = createServer(async (request, response) => {
   const requestedPath = request.url === "/" ? "/index.html" : request.url;
   const safePath = normalize(requestedPath.split("?")[0]).replace(/^(\.\.[/\\])+/, "");
   const filePath = join(root, safePath);
@@ -28,6 +28,19 @@ createServer(async (request, response) => {
     response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
     response.end("Not found");
   }
-}).listen(port, "127.0.0.1", () => {
-  console.log(`Mochi's Sakura Garden: http://localhost:${port}`);
+});
+
+server.on("error", (error) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(
+      `Port ${port} is already in use.`
+      + ` Close the other program or run: PORT=8081 npm start`,
+    );
+    process.exit(1);
+  }
+  throw error;
+});
+
+server.listen(port, "127.0.0.1", () => {
+  console.log(`Mochi and the Shrine of Shadows: http://localhost:${port}`);
 });
