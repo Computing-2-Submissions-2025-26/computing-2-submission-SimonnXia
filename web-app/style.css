@@ -290,6 +290,11 @@ body[data-phase="ending"] .story-screen h1 {
   margin-bottom: 12px;
 }
 
+.play-screen {
+  position: relative;
+  isolation: isolate;
+}
+
 .play-header h1 {
   margin: 0;
   color: var(--sakura-deep);
@@ -1088,6 +1093,7 @@ body[data-phase="sealedLand"] [data-state="silent"] {
 .overlay {
   position: absolute;
   inset: 0;
+  z-index: 1000;
   display: grid;
   place-items: center;
   background: rgba(12, 8, 20, 0.78);
@@ -1099,6 +1105,8 @@ body[data-phase="sealedLand"] [data-state="silent"] {
 }
 
 .overlay-box {
+  position: relative;
+  z-index: 1;
   max-width: 80%;
   padding: 20px;
   text-align: center;
